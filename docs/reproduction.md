@@ -116,3 +116,6 @@ Agent-only cells:
    evidence is documentation, configuration, or generated code.
 4. Agreement is at E1 (retrieval cue). It is not evidence of implementation,
    pointcut satisfaction, or contract compliance; that requires source review.
+   The same run also exercises `match` on real checkouts: cue-bearing function
+   and class bodies become candidates with the pointcut and contract questions
+   attached, rather than an empty symbol-name filter.

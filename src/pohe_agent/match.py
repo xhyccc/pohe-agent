@@ -21,6 +21,7 @@ class Symbol:
     name: str
     line: int
     kind: str
+    end_line: int = 0
 
 
 def normalize(value: str) -> str:
@@ -35,9 +36,9 @@ def python_symbols(text: str) -> list[Symbol]:
     symbols: list[Symbol] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            symbols.append(Symbol(node.name, node.lineno, "function"))
+            symbols.append(Symbol(node.name, node.lineno, "function", node.end_lineno or node.lineno))
         elif isinstance(node, ast.ClassDef):
-            symbols.append(Symbol(node.name, node.lineno, "class"))
+            symbols.append(Symbol(node.name, node.lineno, "class", node.end_lineno or node.lineno))
     return symbols
 
 
@@ -52,10 +53,7 @@ def declaration_symbols(text: str) -> list[Symbol]:
     return symbols
 
 
-def symbols_for(path: SourceFile) -> list[Symbol]:
-    text = read_text(path.path)
-    if text is None:
-        return []
+def symbols_from_text(path: SourceFile, text: str) -> list[Symbol]:
     if path.path.suffix.lower() in {".py", ".pyi"}:
         return python_symbols(text)
     if path.path.suffix.lower() in NON_PYTHON_CODE:
@@ -63,7 +61,16 @@ def symbols_for(path: SourceFile) -> list[Symbol]:
     return []
 
 
-def candidate_reason(record: dict, symbol: Symbol, regex: re.Pattern[str]) -> str:
+def symbols_for(path: SourceFile) -> list[Symbol]:
+    text = read_text(path.path)
+    if text is None:
+        return []
+    return symbols_from_text(path, text)
+
+
+def candidate_reason(
+    record: dict, symbol: Symbol, regex: re.Pattern[str], body: str
+) -> str:
     if regex.search(symbol.name):
         return "cue in symbol name"
     normal = normalize(symbol.name)
@@ -71,6 +78,8 @@ def candidate_reason(record: dict, symbol: Symbol, regex: re.Pattern[str]) -> st
         alias_normal = normalize(alias)
         if len(alias_normal) >= 8 and alias_normal in normal:
             return f"alias {alias!r} in symbol name"
+    if body and regex.search(body):
+        return "cue in symbol body"
     return ""
 
 
@@ -83,25 +92,40 @@ def match_repository(
     catalog = catalog or load_catalog()
     selected = select(catalog, pattern_spec)
     files, skipped = walk_repository(root, max_files=max_files)
-    symbols: list[tuple[SourceFile, Symbol]] = []
-    for source in files:
-        for symbol in symbols_for(source):
-            symbols.append((source, symbol))
     compiled = {record["id"]: re.compile(record["regex"]) for record in selected}
+    candidates_by_pattern: dict[str, list[dict]] = {record["id"]: [] for record in selected}
+    symbol_count = 0
+    for source in files:
+        text = read_text(source.path)
+        if text is None:
+            continue
+        lines = text.splitlines()
+        for symbol in symbols_from_text(source, text):
+            symbol_count += 1
+            body = (
+                "\n".join(lines[symbol.line - 1:symbol.end_line])
+                if symbol.end_line > symbol.line
+                else ""
+            )
+            for record in selected:
+                reason = candidate_reason(record, symbol, compiled[record["id"]], body)
+                if reason:
+                    candidates_by_pattern[record["id"]].append({
+                        "file": source.rel,
+                        "line": symbol.line,
+                        "symbol": symbol.name,
+                        "kind": symbol.kind,
+                        "reason": reason,
+                    })
     results = []
     for record in selected:
-        regex = compiled[record["id"]]
-        candidates = []
-        for source, symbol in symbols:
-            reason = candidate_reason(record, symbol, regex)
-            if reason:
-                candidates.append({
-                    "file": source.rel,
-                    "line": symbol.line,
-                    "symbol": symbol.name,
-                    "kind": symbol.kind,
-                    "reason": reason,
-                })
+        candidates = sorted(
+            candidates_by_pattern[record["id"]],
+            key=lambda item: (
+                0 if item["reason"] != "cue in symbol body" else 1,
+                item["file"], item["line"], item["symbol"],
+            ),
+        )
         results.append({
             "id": record["id"],
             "name": record["name"],
@@ -135,7 +159,7 @@ def match_repository(
         "root": str(root.resolve()),
         "corpus": {
             "files_scanned": len(files),
-            "symbols_extracted": len(symbols),
+            "symbols_extracted": symbol_count,
             "skipped": skipped[:50],
         },
         "patterns": results,

@@ -78,9 +78,11 @@ Each observed record carries:
 
 ### `match`
 
-Extracts function, class, and declaration symbols and checks them against the
-record's cue and aliases. It returns candidates **and the questions** needed to
-adjudicate them. It does not decide that a candidate is a pattern instance.
+Extracts function, class, and declaration symbols and narrows them to
+candidates whose name, alias, or body contains the record's cue. It returns
+candidates **and the questions** needed to adjudicate them. A body hit is a
+lead, not a pointcut match; it does not decide that a candidate is a pattern
+instance.
 
 ### `plan`
 

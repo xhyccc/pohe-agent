@@ -84,6 +84,12 @@ class MatchTests(unittest.TestCase):
         candidates = result["patterns"][0]["candidates"]
         self.assertTrue(any(item["symbol"] == "discover_tools" for item in candidates))
 
+    def test_cue_in_symbol_body_is_a_candidate(self) -> None:
+        result = match_repository(FIXTURE, pattern_spec="P01")
+        candidates = result["patterns"][0]["candidates"]
+        runner = next(item for item in candidates if item["symbol"] == "run_agent")
+        self.assertEqual(runner["reason"], "cue in symbol body")
+
 
 class PlanTests(unittest.TestCase):
     def test_plan_preserves_contract_and_review_status(self) -> None:
