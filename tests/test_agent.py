@@ -209,6 +209,71 @@ class AnalyzeTests(unittest.TestCase):
             for candidate in with_tests["patterns"][0]["candidates"]
         ))
 
+    def test_same_named_scopes_in_different_files_stay_separate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ("first.py", "second.py"):
+                (root / name).write_text(
+                    "def run_loop(task, model):\n"
+                    "    return model.complete(task)\n"
+                )
+            result = analyze_repository(root, pattern_spec="P01", top=10, min_verdict="rejected")
+            candidates = result["patterns"][0]["candidates"]
+            self.assertEqual(len(candidates), 2)
+            self.assertEqual({item["file"] for item in candidates}, {"first.py", "second.py"})
+            self.assertTrue(all(item["cue_hits"] == 1 for item in candidates))
+
+    def test_parallel_analysis_matches_serial_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for index in range(36):
+                (root / f"module_{index:02d}.py").write_text(
+                    "def run_loop(task, model):\n"
+                    "    for step in range(3):\n"
+                    "        if step > 1:\n"
+                    "            return task\n"
+                    "    return model.complete(task)\n"
+                )
+            serial = analyze_repository(root, pattern_spec="P01", top=5, jobs=1)
+            parallel = analyze_repository(root, pattern_spec="P01", top=5, jobs=2)
+            self.assertEqual(serial["method"]["workers"], 1)
+            self.assertEqual(parallel["method"]["workers"], 2)
+            serial["method"].pop("workers")
+            parallel["method"].pop("workers")
+            self.assertEqual(serial, parallel)
+
+    def test_cache_identity_does_not_trigger_generic_cache_control(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "cache.py").write_text(
+                "class PromptCacheKeyResolver:\n"
+                "    def resolve(self, model, conversation_id):\n"
+                "        if not model.supports_default_prompt_cache_key:\n"
+                "            return None\n"
+                "        self.prompt_cache_key = conversation_id\n"
+                "        return self.prompt_cache_key\n"
+            )
+            result = analyze_repository(root, pattern_spec="P07", top=5, min_verdict="rejected")
+            top = result["patterns"][0]["candidates"][0]
+            self.assertEqual(top["negative_control"]["status"], "clear")
+            self.assertNotEqual(top["verdict"], "rejected")
+
+    def test_sequential_agent_has_a_stage_but_not_typed_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "sequential.py").write_text(
+                "class SequentialAgent:\n"
+                "    async def run(self, sub_agents):\n"
+                "        for sub_agent in sub_agents:\n"
+                "            async for event in sub_agent.run():\n"
+                "                yield event\n"
+            )
+            result = analyze_repository(root, pattern_spec="W01", top=5, min_verdict="rejected")
+            top = result["patterns"][0]["candidates"][0]
+            self.assertEqual(top["negative_control"]["status"], "clear")
+            self.assertNotEqual(top["verdict"], "rejected")
+            self.assertIn("validation", top["dimensions"]["structure"]["missing"])
+
     def test_report_preserves_the_evidence_boundary(self) -> None:
         report = analyze_to_markdown(self.result)
         self.assertIn("operational signature", report)

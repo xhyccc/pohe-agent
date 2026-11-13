@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "method": "An operational signature is a detection contract, not a restatement of the pointcut. Tags name observable roles; the negative list names the contrast the signature must reject.",
   "patterns": {
     "P01": {
@@ -177,7 +177,7 @@
       "negative": [
         "generic_cache"
       ],
-      "note": "Provider-aware cache identity: capability gate, stable key, and request association. The pointcut also names a dialect adapter and response association; only add those roles when the source shows them.",
+      "note": "Provider-aware cache identity: capability gate, stable key, and request association. The pointcut also names a dialect adapter and response association; only add those roles when the source shows them. The generic-cache control requires cache plus a capability gate, identity association, or dialect adapter; adapter/schema alone are not mandatory in every scope.",
       "cues": [
         "prompt[_-]?cache[_-]?key"
       ]

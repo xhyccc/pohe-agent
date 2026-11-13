@@ -94,6 +94,7 @@ def cmd_analyze(args: argparse.Namespace) -> None:
         top=args.top,
         min_verdict=args.min_verdict,
         include_tests=args.include_tests,
+        jobs=args.jobs,
     )
     if args.json:
         write_json(Path(args.json), result)
@@ -190,6 +191,10 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser.add_argument(
         "--max-files", type=int, default=0,
         help="cap candidate files; 0 keeps every candidate (default)",
+    )
+    analyze_parser.add_argument(
+        "--jobs", type=int, default=0,
+        help="worker processes; 0 auto (up to 8), 1 forces serial (default 0)",
     )
     analyze_parser.set_defaults(func=cmd_analyze)
 

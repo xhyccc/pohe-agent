@@ -74,7 +74,7 @@ pohe-agent list [--patterns P,W]
 pohe-agent show P01 [--json]
 pohe-agent scan <repo> [--json FILE] [--markdown FILE] [--patterns IDS] [--max-files N]  # N=0 means all files
 pohe-agent match <repo> [--pattern IDS] [--json FILE] [--markdown FILE]
-pohe-agent analyze <repo> [--pattern IDS] [--top N] [--min-verdict V] [--include-tests] [--json FILE] [--markdown FILE]
+pohe-agent analyze <repo> [--pattern IDS] [--top N] [--min-verdict V] [--include-tests] [--jobs N] [--json FILE] [--markdown FILE]
 pohe-agent plan <repo> --findings FILE --goal TEXT [--patterns IDS] [-o FILE]
 ```
 

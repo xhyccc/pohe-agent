@@ -8,7 +8,9 @@ about semantic conformance.
 """
 from __future__ import annotations
 
+import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,11 +86,11 @@ NEGATIVE_RULES = {
     "static_inventory": NegativeRule(("registry", "discovery", "invocation"), detail="no discovery, registry, or invocation handle"),
     "sync_list": NegativeRule(("yield",), detail="no yield/stream path"),
     "global_list": NegativeRule(("queue", "state_machine"), detail="no queue or transition core"),
-    "generic_cache": NegativeRule(("adapter", "schema"), severity="medium", detail="no provider dialect or cache-control schema"),
+    "generic_cache": NegativeRule(("capability", "correlation", "adapter"), tags_all=("cache",), severity="medium", detail="cache lacks a provider capability gate or identity association"),
     "single_vendor": NegativeRule(("adapter", "protocol"), severity="medium", detail="no provider boundary"),
     "unrelated_limit": NegativeRule(("truncate", "artifact"), severity="medium", detail="cap has no observation-boundary machinery"),
     "in_memory_queue": NegativeRule(("append", "cursor", "ack"), detail="no durable append, cursor, or acknowledgement"),
-    "mutable_array": NegativeRule(("projector", "schema"), detail="no event schema or projector"),
+    "mutable_array": NegativeRule(("projector", "schema"), severity="medium", detail="no event schema or projector in the anchored scope"),
     "prompt_template": NegativeRule(("manifest", "resource", "loader"), detail="no manifest, resource bundle, or loader"),
     "direct_log": NegativeRule(("event", "registry", "interception"), detail="no event schema, registration, or interception"),
     "post_run_test": NegativeRule(("verifier", "stop"), detail="no stop interception or verifier"),
@@ -348,6 +350,120 @@ def _test_links(files: list[SourceFile], candidates: list[dict], limit: int = 3)
         candidate["tests"] = found
 
 
+def _analyze_file(source: SourceFile, selected: list[dict], compiled: dict) -> tuple:
+    """Analyze one file and return serializable scope evidence.
+
+    Keeping all cue scanning and fact extraction here lets the caller use the
+    same implementation sequentially or in a worker pool. Results are merged in
+    repository-walk order, so parallel output is identical to serial output.
+    """
+    text = read_text(source.path)
+    if text is None:
+        return source.rel, {}, {}, {}, None
+    lines = text.splitlines()
+    scopes = extract_scopes(text, source.rel, source.path.suffix.lower())
+    buckets: dict[str, dict[tuple, dict]] = {record["id"]: {} for record in selected}
+    for record in selected:
+        seen_offsets: set[int] = set()
+        for cue_source, regex in compiled[record["id"]]:
+            for hit_index, match in enumerate(regex.finditer(text)):
+                if hit_index >= MAX_HITS_PER_PATTERN_PER_FILE:
+                    break
+                if match.start() in seen_offsets:
+                    continue
+                seen_offsets.add(match.start())
+                line_number = text.count("\n", 0, match.start()) + 1
+                line = lines[line_number - 1] if 0 < line_number <= len(lines) else ""
+                scope = scope_for_line(scopes, line_number)
+                # The path is part of the identity: two files can contain the
+                # same declaration name at the same lines without being one
+                # candidate.
+                key = (scope.rel, scope.start, scope.end, scope.name, scope.kind)
+                bucket = buckets[record["id"]].setdefault(key, {
+                    "scope": scope,
+                    "hits": [],
+                    "cue_sources": set(),
+                    "aggregated": False,
+                })
+                bucket["cue_sources"].add(cue_source)
+                bucket["hits"].append({
+                    "line": line_number,
+                    "text": " ".join(line.strip().split())[:180],
+                    "modality": line_modality(line),
+                    "cue": cue_source,
+                })
+    facts_by_scope: dict[tuple[str, int, int], ScopeFacts] = {}
+    tags_by_scope: dict[tuple[str, int, int], dict] = {}
+    for record in selected:
+        for bucket in buckets[record["id"]].values():
+            scope = bucket["scope"]
+            cache_key = (scope.rel, scope.start, scope.end)
+            if cache_key in facts_by_scope:
+                continue
+            scope_lines = lines[scope.start - 1:min(len(lines), scope.start - 1 + 1200)]
+            scope_text = "\n".join(scope_lines)
+            facts = extract_facts(scope_text, scope, source.path.suffix.lower())
+            parent = next(
+                (
+                    item for item in scopes
+                    if item.kind == "class"
+                    and item is not scope
+                    and item.start <= scope.start
+                    and scope.end <= item.end
+                ),
+                None,
+            )
+            if parent is not None:
+                facts.add_token(parent.name)
+            facts_by_scope[cache_key] = facts
+            tags_by_scope[cache_key] = evaluate_tags(facts)
+    has_candidates = any(buckets[record["id"]] for record in selected)
+    return source.rel, buckets, facts_by_scope, tags_by_scope, lines if has_candidates else None
+
+
+_WORKER_SELECTED: list[dict] | None = None
+_WORKER_COMPILED: dict | None = None
+
+
+def _init_analysis_worker(selected: list[dict], compiled: dict) -> None:
+    global _WORKER_SELECTED, _WORKER_COMPILED
+    _WORKER_SELECTED = selected
+    _WORKER_COMPILED = compiled
+
+
+def _analyze_file_worker(source: SourceFile) -> tuple:
+    if _WORKER_SELECTED is None or _WORKER_COMPILED is None:
+        raise RuntimeError("analysis worker was not initialized")
+    return _analyze_file(source, _WORKER_SELECTED, _WORKER_COMPILED)
+
+
+def _analysis_workers(file_count: int, jobs: int) -> int:
+    """Choose a bounded worker count; small repositories stay in-process."""
+    if file_count < 32:
+        return 1
+    return min(8, os.cpu_count() or 2) if jobs == 0 else max(1, jobs)
+
+
+def _iter_file_results(files: list[SourceFile], selected: list[dict], compiled: dict, jobs: int):
+    """Yield per-file evidence in walk order, optionally using worker processes."""
+    workers = _analysis_workers(len(files), jobs)
+    if workers == 1:
+        for source in files:
+            yield _analyze_file(source, selected, compiled)
+        return
+    import multiprocessing as mp
+
+    # Fork is available on the POSIX targets this package supports and also
+    # works for library callers whose __main__ is stdin. Windows uses spawn.
+    method = "spawn" if sys.platform == "win32" else "fork"
+    with mp.get_context(method).Pool(
+        workers,
+        initializer=_init_analysis_worker,
+        initargs=(selected, compiled),
+    ) as pool:
+        yield from pool.imap(_analyze_file_worker, files, chunksize=4)
+
+
 def analyze_repository(
     root: Path,
     catalog: dict | None = None,
@@ -357,6 +473,7 @@ def analyze_repository(
     top: int = 5,
     min_verdict: str = "cue_only",
     include_tests: bool = False,
+    jobs: int = 0,
 ) -> dict:
     catalog = catalog or load_catalog()
     signatures = signatures or load_signatures()
@@ -378,65 +495,23 @@ def analyze_repository(
     tag_cache: dict[tuple[str, int, int], dict] = {}
     threshold = VERDICT_ORDER[min_verdict]
 
-    for source in files:
-        text = read_text(source.path)
-        if text is None:
-            continue
-        lines = text.splitlines()
-        line_cache[source.rel] = lines
-        scopes = extract_scopes(text, source.rel, source.path.suffix.lower())
-        touched: dict[str, set[tuple]] = {record["id"]: set() for record in selected}
+    file_results = _iter_file_results(files, selected, compiled, jobs)
+    for rel, file_buckets, file_facts, file_tags, lines in file_results:
+        if lines is not None:
+            line_cache[rel] = lines
+        facts_cache.update(file_facts)
+        tag_cache.update(file_tags)
         for record in selected:
-            seen_offsets: set[int] = set()
-            for cue_source, regex in compiled[record["id"]]:
-                for hit_index, match in enumerate(regex.finditer(text)):
-                    if hit_index >= MAX_HITS_PER_PATTERN_PER_FILE:
-                        break
-                    if match.start() in seen_offsets:
-                        continue
-                    seen_offsets.add(match.start())
-                    line_number = text.count("\n", 0, match.start()) + 1
-                    line = lines[line_number - 1] if 0 < line_number <= len(lines) else ""
-                    scope = scope_for_line(scopes, line_number)
-                    key = (scope.start, scope.end, scope.name, scope.kind)
-                    bucket = candidates_by_pattern[record["id"]].setdefault(key, {
-                        "scope": scope,
-                        "hits": [],
-                        "cue_sources": set(),
-                        "aggregated": False,
-                    })
-                    bucket["cue_sources"].add(cue_source)
-                    bucket["hits"].append({
-                        "line": line_number,
-                        "text": " ".join(line.strip().split())[:180],
-                        "modality": line_modality(line),
-                        "cue": cue_source,
-                    })
-                    touched[record["id"]].add(key)
-        for record in selected:
-            for key in touched[record["id"]]:
-                bucket = candidates_by_pattern[record["id"]][key]
-                scope = bucket["scope"]
-                cache_key = (scope.rel, scope.start, scope.end)
-                if cache_key in facts_cache:
-                    continue
-                scope_lines = lines[scope.start - 1:min(len(lines), scope.start - 1 + 1200)]
-                scope_text = "\n".join(scope_lines)
-                facts = extract_facts(scope_text, scope, source.path.suffix.lower())
-                parent = next(
-                    (
-                        item for item in scopes
-                        if item.kind == "class"
-                        and item is not scope
-                        and item.start <= scope.start
-                        and scope.end <= item.end
-                    ),
-                    None,
-                )
-                if parent is not None:
-                    facts.add_token(parent.name)
-                facts_cache[cache_key] = facts
-                tag_cache[cache_key] = evaluate_tags(facts)
+            record_buckets = candidates_by_pattern[record["id"]]
+            for key, bucket in file_buckets.get(record["id"], {}).items():
+                merged = record_buckets.setdefault(key, {
+                    "scope": bucket["scope"],
+                    "hits": [],
+                    "cue_sources": set(),
+                    "aggregated": False,
+                })
+                merged["hits"].extend(bucket["hits"])
+                merged["cue_sources"].update(bucket["cue_sources"])
 
     results = []
     for record in selected:
@@ -510,8 +585,9 @@ def analyze_repository(
         "tool": "pohe-agent",
         "method": {
             "name": "scope-anchored evidence triangulation",
-            "version": "1.1.0",
+            "version": "1.2.1",
             "signature_version": signatures.get("version", "unknown"),
+            "workers": _analysis_workers(len(files), jobs),
         },
         "root": str(root.resolve()),
         "corpus": {
