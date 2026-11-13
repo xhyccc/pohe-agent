@@ -11,7 +11,10 @@ Use this skill when a specific file, symbol, or candidate has been retrieved and
 the question is: **is this a POHE record, and at what evidence level?**
 
 Detection gives leads. Matching is a source-reading task. It cannot be reduced
-to the regex.
+to the regex. The operational signature used by `analyze` is also not the
+pointcut: it is the observable-role proxy the tool can check. When signature and
+pointcut disagree, read the canonical exemplar and record the disagreement
+instead of forcing either side.
 
 ## Inputs
 
@@ -20,6 +23,19 @@ to the regex.
   ```bash
   pohe-agent match <repo> --pattern <ID> --markdown candidates.md
   ```
+- A scope-anchored evidence packet:
+  ```bash
+  pohe-agent analyze <repo> --pattern <ID> --markdown analysis.md
+  ```
+  Read its dimension status, missing roles, negative-control checks, and
+  contract probes. Its verdict is a review lead, not an evidence level.
+  `cue_sources` tells you whether the scope was reached by the frozen lexical
+  cue or by a calibrated operational alias. An operational-only hit is still
+  only a retrieval lead; it is not structural evidence.
+- The canonical anchor and `docs/calibration.md`. If the anchor is a file,
+  interface, prompt, or configuration, or if it is missing signature roles,
+  treat that as a pointcut/exemplar question to record, not as a reason to
+  loosen the signature until the anchor passes.
 - The candidate source file and its tests.
 
 ## Adjudication procedure

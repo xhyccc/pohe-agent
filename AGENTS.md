@@ -8,7 +8,9 @@ The package has three layers:
 
 1. `pohe-agent scan` retrieves lexical cues from a checkout.
 2. `pohe-agent match` extracts structural candidates for source review.
-3. `pohe-agent plan` turns findings into a pattern-guided evolution proposal.
+3. `pohe-agent analyze` anchors cues to scopes and checks an operational
+   signature, negative control, and contract probes.
+4. `pohe-agent plan` turns findings into a pattern-guided evolution proposal.
 
 The catalog in `src/pohe_agent/data/patterns.json` is frozen study data. Do not
 rewrite it to make a finding look better.
@@ -44,9 +46,14 @@ the test or runtime check that covers the contract field.
    ```bash
    pohe-agent match <repo> --pattern P01,P09 --markdown candidates.md
    ```
+   For a dimension-level packet, run:
+   ```bash
+   pohe-agent analyze <repo> --pattern P01,P09 --markdown analysis.md
+   ```
 5. **Adjudicate.** For each candidate, answer the pointcut questions and
    contract questions in `skills/pohe-pattern-matching/SKILL.md`. Apply the
-   negative control. Record E1, E2, E3, or "not this record".
+   negative control. Record E1, E2, E3, or "not this record". `analyze` verdicts
+   are scope-level evidence, not E2 promotion.
 6. **Plan.** For evolution work:
    ```bash
    pohe-agent plan <repo> --findings findings.json --patterns P01,P09 \
@@ -67,6 +74,7 @@ pohe-agent list [--patterns P,W]
 pohe-agent show P01 [--json]
 pohe-agent scan <repo> [--json FILE] [--markdown FILE] [--patterns IDS] [--max-files N]  # N=0 means all files
 pohe-agent match <repo> [--pattern IDS] [--json FILE] [--markdown FILE]
+pohe-agent analyze <repo> [--pattern IDS] [--top N] [--min-verdict V] [--include-tests] [--json FILE] [--markdown FILE]
 pohe-agent plan <repo> --findings FILE --goal TEXT [--patterns IDS] [-o FILE]
 ```
 
@@ -83,6 +91,10 @@ Run from a checkout: `PYTHONPATH=src python3 -m pohe_agent ...`, or install with
   maintainer's instruction.
 - Do not place secrets, tokens, or private repository contents in reports.
 - Keep the negative control visible in every adjudication.
+- Do not edit `data/signatures.json` to make a candidate pass. A signature is a
+  reviewable detection contract; change it only with a stated reason and rerun
+  the canonical examples:
+  `python tools/audit_canonical.py --markdown docs/calibration.md`.
 - Leave unobserved records visible as unobserved.
 
 ## Repository map
@@ -95,6 +107,10 @@ src/pohe_agent/catalog.py     load and select records
 src/pohe_agent/walk.py        deterministic repository walking
 src/pohe_agent/scan.py        lexical cue retrieval
 src/pohe_agent/match.py       structural candidates and questions
+src/pohe_agent/features.py    scope anchoring, facts, tag vocabulary
+src/pohe_agent/signatures.py  operational signature loader
+src/pohe_agent/analyze.py     evidence triangulation and verdicts
+src/pohe_agent/data/signatures.json  one operational signature per record
 src/pohe_agent/plan.py        evolution plan builder
 src/pohe_agent/report.py      Markdown rendering
 src/pohe_agent/cli.py         command-line interface
@@ -104,7 +120,10 @@ examples/mini_harness/        runnable example
 tests/                        stdlib test suite
 tools/export_patterns.py      regenerate catalog data from the field guide
 tools/reproduce_study_matrix.py  compare cue retrieval with the study matrix
+tools/audit_canonical.py      audit signatures and cues against canonical anchors
 docs/reproduction.md          method and results of the 41-repository run
+docs/analysis.md              scope-anchored evidence triangulation
+docs/calibration.md           generated canonical-anchor audit
 ```
 
 ## Skills

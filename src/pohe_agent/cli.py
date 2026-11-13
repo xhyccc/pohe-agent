@@ -6,11 +6,13 @@ import json
 from pathlib import Path
 
 from . import __version__
+from .analyze import analyze_repository, analyze_to_markdown
 from .catalog import load_catalog, select
 from .match import match_repository
 from .plan import build_plan
 from .report import match_to_markdown, scan_to_markdown
 from .scan import scan_repository
+from .signatures import load_signatures
 
 
 def write_text(path: Path, text: str) -> None:
@@ -82,6 +84,25 @@ def cmd_match(args: argparse.Namespace) -> None:
         print(match_to_markdown(result))
 
 
+def cmd_analyze(args: argparse.Namespace) -> None:
+    signatures = load_signatures(Path(args.signatures)) if args.signatures else None
+    result = analyze_repository(
+        Path(args.repo),
+        signatures=signatures,
+        pattern_spec=args.pattern,
+        max_files=args.max_files,
+        top=args.top,
+        min_verdict=args.min_verdict,
+        include_tests=args.include_tests,
+    )
+    if args.json:
+        write_json(Path(args.json), result)
+    if args.markdown:
+        write_text(Path(args.markdown), analyze_to_markdown(result))
+    if not args.json and not args.markdown:
+        print(analyze_to_markdown(result))
+
+
 def cmd_plan(args: argparse.Namespace) -> None:
     findings_path = Path(args.findings)
     scan_result = json.loads(findings_path.read_text(encoding="utf-8"))
@@ -145,6 +166,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="cap candidate files; 0 keeps every candidate (default)",
     )
     match_parser.set_defaults(func=cmd_match)
+
+    analyze_parser = subparsers.add_parser(
+        "analyze",
+        help="anchor cues to scopes and check operational signatures",
+    )
+    analyze_parser.add_argument("repo")
+    analyze_parser.add_argument("--pattern", help="comma-separated ids or families; default all")
+    analyze_parser.add_argument("--json", help="write JSON evidence packets")
+    analyze_parser.add_argument("--markdown", help="write a Markdown analysis report")
+    analyze_parser.add_argument("--signatures", help="override the bundled signature file")
+    analyze_parser.add_argument("--top", type=int, default=5, help="candidates per record (default 5)")
+    analyze_parser.add_argument(
+        "--min-verdict",
+        default="cue_only",
+        choices=("rejected", "cue_only", "structural_candidate", "pointcut_candidate", "source_matched"),
+        help="drop candidates below this verdict (default cue_only)",
+    )
+    analyze_parser.add_argument(
+        "--include-tests", action="store_true",
+        help="allow test scopes as primary candidates (default: tests are linkage only)",
+    )
+    analyze_parser.add_argument(
+        "--max-files", type=int, default=0,
+        help="cap candidate files; 0 keeps every candidate (default)",
+    )
+    analyze_parser.set_defaults(func=cmd_analyze)
+
 
     plan_parser = subparsers.add_parser("plan", help="build a pattern-guided evolution plan")
     plan_parser.add_argument("repo")

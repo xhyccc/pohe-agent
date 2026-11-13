@@ -28,6 +28,21 @@ pohe-agent match /path/to/your/repo --pattern P01,P09 --markdown candidates.md
 pohe-agent show P01
 ```
 
+For a scope-anchored evidence packet instead of symbol leads:
+
+```bash
+pohe-agent analyze /path/to/your/repo --pattern P01,P09 --markdown analysis.md
+```
+
+`analyze` maps each cue to its enclosing declaration, checks an operational
+signature for context, trigger, structure, and effect, applies the record's
+negative control, and reports the missing roles. Cues are matched with
+identifier-aware boundaries, and a signature may carry calibrated operational
+aliases when the frozen regex misses its own exemplar. See
+[`docs/analysis.md`](docs/analysis.md) for the method and
+[`docs/calibration.md`](docs/calibration.md) for the 51-anchor audit that
+separates retrieval gaps, anchor gaps, and missing structure roles.
+
 And turn findings into a reviewed evolution proposal:
 
 ```bash
@@ -52,6 +67,10 @@ repository
    │
    ├── match ───────► structural symbols + adjudication questions
    │                    Python AST, declaration syntax, alias hits
+   │
+   ├── analyze ─────► scope-anchored evidence triangulation
+   │                    operational signature, dimensions, negative control,
+   │                    contract probes, verdict
    │
    └── plan ────────► pattern-guided evolution proposal
                         protected contract, variation, tests, authority,
@@ -84,6 +103,21 @@ candidates **and the questions** needed to adjudicate them. A body hit is a
 lead, not a pointcut match; it does not decide that a candidate is a pattern
 instance.
 
+### `analyze`
+
+Anchors each cue to the smallest enclosing function, method, class, or
+declaration, then checks an operational signature against the scope. A
+signature is a detection contract, separate from the prose pointcut, so a
+curation disagreement does not silently change the matcher. The output reports
+dimension-level coverage, missing roles, negative-control checks, contract
+probes, test linkage, and an explicit verdict from `rejected` to
+`source_matched`.
+
+`source_matched` means the scope visibly contains every signature role. It is
+not E2 and not contract support. Tests are excluded from primary candidates by
+default because fixtures often contain every role at once; use
+`--include-tests` when that is the object of study.
+
 ### `plan`
 
 Builds a Markdown evolution plan from scan findings. It preserves the protected
@@ -96,8 +130,8 @@ authority, evidence, rollback, and retirement remain to be filled.
 | Level | Meaning | What the tool can produce |
 | --- | --- | --- |
 | E0 | Proposed record | The frozen specification |
-| E1 | Retrieval cue | `scan` and `match` output |
-| E2 | Source-located mechanism | An agent or maintainer reads the source |
+| E1 | Retrieval cue | `scan`, `match`, and `analyze` candidate retrieval |
+| E2 | Source-located mechanism | An agent or maintainer reads the source; `analyze` prepares the packet |
 | E3 | Contract support | Tests or runtime checks named per contract field |
 
 **A cue is not an implementation.** Cue coverage is not prevalence. Absence of a

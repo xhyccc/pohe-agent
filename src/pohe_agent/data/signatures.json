@@ -1,0 +1,1392 @@
+{
+  "version": "1.1.0",
+  "method": "An operational signature is a detection contract, not a restatement of the pointcut. Tags name observable roles; the negative list names the contrast the signature must reject.",
+  "patterns": {
+    "P01": {
+      "context": [
+        "agent",
+        "model"
+      ],
+      "trigger": [
+        "tool",
+        "model"
+      ],
+      "structure": [
+        "loop",
+        "history",
+        "termination",
+        "decision"
+      ],
+      "effect": [
+        "result",
+        "tool",
+        "termination"
+      ],
+      "negative": [
+        "one_shot"
+      ],
+      "note": "Turn loop with recorded results and an explicit exit or budget path."
+    },
+    "P02": {
+      "context": [
+        "fanout",
+        "worker"
+      ],
+      "trigger": [
+        "partition",
+        "fanout"
+      ],
+      "structure": [
+        "partition",
+        "correlation",
+        "aggregate",
+        "worker"
+      ],
+      "effect": [
+        "aggregate",
+        "result"
+      ],
+      "negative": [
+        "no_fan_in"
+      ],
+      "note": "Concurrent batch with invocation identity and correlated merge."
+    },
+    "P03": {
+      "context": [
+        "agent",
+        "state_machine"
+      ],
+      "trigger": [
+        "event",
+        "checkpoint"
+      ],
+      "structure": [
+        "state_machine",
+        "event",
+        "checkpoint",
+        "decision"
+      ],
+      "effect": [
+        "state_machine",
+        "history"
+      ],
+      "negative": [
+        "no_transition"
+      ],
+      "note": "Paused run resumed through enumerated legal transitions."
+    },
+    "P04": {
+      "context": [
+        "model",
+        "tool"
+      ],
+      "trigger": [
+        "invocation",
+        "middleware"
+      ],
+      "structure": [
+        "middleware",
+        "continuation",
+        "short_circuit",
+        "ordering"
+      ],
+      "effect": [
+        "middleware",
+        "result"
+      ],
+      "negative": [
+        "hard_coded"
+      ],
+      "note": "Ordered call-boundary chain with continuation or short-circuit."
+    },
+    "P05": {
+      "context": [
+        "agent",
+        "event"
+      ],
+      "trigger": [
+        "event",
+        "yield"
+      ],
+      "structure": [
+        "event",
+        "yield",
+        "cancellation",
+        "cleanup"
+      ],
+      "effect": [
+        "event",
+        "termination"
+      ],
+      "negative": [
+        "sync_list"
+      ],
+      "note": "Incremental event stream with cancellation and cleanup.",
+      "cues": [
+        "\\byield\\b",
+        "\\bAsyncGenerator\\b"
+      ]
+    },
+    "P06": {
+      "context": [
+        "agent",
+        "message"
+      ],
+      "trigger": [
+        "message",
+        "queue"
+      ],
+      "structure": [
+        "state_machine",
+        "message",
+        "queue",
+        "ordering"
+      ],
+      "effect": [
+        "decision",
+        "history"
+      ],
+      "negative": [
+        "global_list"
+      ],
+      "note": "Transition core consumes steering input with explicit ordering.",
+      "cues": [
+        "\\bsteer(?:s|ing)?\\b",
+        "\\bPromotable\\b",
+        "\\binbox\\b"
+      ]
+    },
+    "P07": {
+      "context": [
+        "model",
+        "cache"
+      ],
+      "trigger": [
+        "cache",
+        "capability"
+      ],
+      "structure": [
+        "cache",
+        "capability",
+        "correlation"
+      ],
+      "effect": [
+        "cache",
+        "decision"
+      ],
+      "negative": [
+        "generic_cache"
+      ],
+      "note": "Provider-aware cache identity: capability gate, stable key, and request association. The pointcut also names a dialect adapter and response association; only add those roles when the source shows them.",
+      "cues": [
+        "prompt[_-]?cache[_-]?key"
+      ]
+    },
+    "P08": {
+      "context": [
+        "model",
+        "provider"
+      ],
+      "trigger": [
+        "provider",
+        "protocol"
+      ],
+      "structure": [
+        "protocol",
+        "provider",
+        "subtype",
+        "error"
+      ],
+      "effect": [
+        "provider",
+        "error"
+      ],
+      "negative": [
+        "single_vendor"
+      ],
+      "note": "Declared provider boundary plus at least one implementation. A bare interface is a structural candidate, not a matched adapter."
+    },
+    "P09": {
+      "context": [
+        "tool",
+        "discovery"
+      ],
+      "trigger": [
+        "discovery",
+        "invocation"
+      ],
+      "structure": [
+        "discovery",
+        "registry",
+        "authorization",
+        "invocation"
+      ],
+      "effect": [
+        "tool",
+        "authorization",
+        "schema"
+      ],
+      "negative": [
+        "static_inventory"
+      ],
+      "note": "Discovery descriptor and registry resolve a tool before authorized invocation."
+    },
+    "P10": {
+      "context": [
+        "tool",
+        "context"
+      ],
+      "trigger": [
+        "cap",
+        "truncate"
+      ],
+      "structure": [
+        "cap",
+        "truncate",
+        "artifact",
+        "result"
+      ],
+      "effect": [
+        "result",
+        "error"
+      ],
+      "negative": [
+        "unrelated_limit"
+      ],
+      "note": "Observation cap with truncation metadata and artifact recovery."
+    },
+    "P11": {
+      "context": [
+        "tool",
+        "plan"
+      ],
+      "trigger": [
+        "decision",
+        "tool"
+      ],
+      "structure": [
+        "schema",
+        "result",
+        "plan",
+        "delegation"
+      ],
+      "effect": [
+        "result",
+        "plan"
+      ],
+      "negative": [
+        "single_function"
+      ],
+      "note": "Separate effect contract and workflow sequencing ownership."
+    },
+    "P12": {
+      "context": [
+        "agent",
+        "delegation"
+      ],
+      "trigger": [
+        "delegation",
+        "worker"
+      ],
+      "structure": [
+        "delegation",
+        "worker",
+        "budget",
+        "result",
+        "correlation"
+      ],
+      "effect": [
+        "result",
+        "correlation"
+      ],
+      "negative": [
+        "sequential_calls"
+      ],
+      "note": "Delegation envelope carries task identity, authority, budget, and result target."
+    },
+    "P13": {
+      "context": [
+        "event",
+        "append"
+      ],
+      "trigger": [
+        "event",
+        "cursor"
+      ],
+      "structure": [
+        "event",
+        "cursor",
+        "ack",
+        "append"
+      ],
+      "effect": [
+        "event",
+        "ack"
+      ],
+      "negative": [
+        "in_memory_queue"
+      ],
+      "note": "Durable append-only work log with consumer cursor and acknowledgement.",
+      "cues": [
+        "\\bevent[_\\s-]?queue\\b",
+        "\\bpoller\\b",
+        "\\bappend[_\\s-]?(?:event|item)\\b"
+      ]
+    },
+    "P14": {
+      "context": [
+        "message",
+        "event"
+      ],
+      "trigger": [
+        "event",
+        "append"
+      ],
+      "structure": [
+        "event",
+        "schema",
+        "projector",
+        "correlation"
+      ],
+      "effect": [
+        "event",
+        "history"
+      ],
+      "negative": [
+        "mutable_array"
+      ],
+      "note": "Event schema plus projector reconstructs conversation state."
+    },
+    "P15": {
+      "context": [
+        "skill",
+        "loader"
+      ],
+      "trigger": [
+        "skill",
+        "discovery"
+      ],
+      "structure": [
+        "skill",
+        "manifest",
+        "resource",
+        "loader",
+        "authorization"
+      ],
+      "effect": [
+        "skill",
+        "resource"
+      ],
+      "negative": [
+        "prompt_template"
+      ],
+      "note": "Manifest and resource bundle loaded through a visible execution boundary."
+    },
+    "P16": {
+      "context": [
+        "event",
+        "middleware"
+      ],
+      "trigger": [
+        "event",
+        "middleware"
+      ],
+      "structure": [
+        "event",
+        "schema",
+        "registry",
+        "ordering",
+        "interception"
+      ],
+      "effect": [
+        "event",
+        "middleware"
+      ],
+      "negative": [
+        "direct_log"
+      ],
+      "note": "Named lifecycle event with registered, ordered handlers.",
+      "cues": [
+        "\\bagent[_-]?hooks?\\b",
+        "\\bpre[_-]?(?:model|tool)_call\\b",
+        "\\bpost[_-]?(?:model|tool)_call\\b",
+        "\\bregister[_-]?hook\\b"
+      ]
+    },
+    "P17": {
+      "context": [
+        "agent",
+        "verifier"
+      ],
+      "trigger": [
+        "stop",
+        "verifier"
+      ],
+      "structure": [
+        "stop",
+        "verifier",
+        "decision",
+        "continuation"
+      ],
+      "effect": [
+        "stop",
+        "decision"
+      ],
+      "negative": [
+        "post_run_test"
+      ],
+      "note": "Stop request intercepted by a verifier with accept-or-continue result.",
+      "cues": [
+        "\\bself[_-]?verif\\w*",
+        "\\bverify[_-]?on[_-]?stop\\b",
+        "\\bbefore[_-]?stop\\b",
+        "\\bacceptance[_-]?check\\b",
+        "\\bon[_-]?task[_-]?end\\b"
+      ]
+    },
+    "P18": {
+      "context": [
+        "agent",
+        "loop"
+      ],
+      "trigger": [
+        "cap",
+        "loop"
+      ],
+      "structure": [
+        "loop",
+        "cap",
+        "decision",
+        "escalation"
+      ],
+      "effect": [
+        "escalation",
+        "termination"
+      ],
+      "negative": [
+        "depth_limit"
+      ],
+      "note": "Composite repetition signal crosses a threshold and triggers intervention."
+    },
+    "P19": {
+      "context": [
+        "agent",
+        "cap"
+      ],
+      "trigger": [
+        "ledger",
+        "cap"
+      ],
+      "structure": [
+        "ledger",
+        "cap",
+        "termination",
+        "escalation"
+      ],
+      "effect": [
+        "termination",
+        "cap"
+      ],
+      "negative": [
+        "constant_limit"
+      ],
+      "note": "Resource ledger and cap policy produce a terminal reason.",
+      "cues": [
+        "\\bmax[_-]?steps?\\b",
+        "\\bstep[_-]?limit\\b",
+        "\\btoken[_-]?budget\\b"
+      ]
+    },
+    "P20": {
+      "context": [
+        "agent",
+        "retry"
+      ],
+      "trigger": [
+        "error",
+        "reflection"
+      ],
+      "structure": [
+        "retry",
+        "reflection",
+        "revision",
+        "cap"
+      ],
+      "effect": [
+        "revision",
+        "history"
+      ],
+      "negative": [
+        "prompt_only"
+      ],
+      "note": "Failed attempt record feeds a bounded revision."
+    },
+    "P21": {
+      "context": [
+        "agent",
+        "command"
+      ],
+      "trigger": [
+        "command",
+        "parser"
+      ],
+      "structure": [
+        "parser",
+        "command",
+        "policy",
+        "schema"
+      ],
+      "effect": [
+        "authorization",
+        "error"
+      ],
+      "negative": [
+        "substring_denylist"
+      ],
+      "note": "Parsed command operations drive a policy decision before execution.",
+      "cues": [
+        "\\bshell[_-]?pars\\w*",
+        "\\bcommand[_-]?pars\\w*",
+        "\\btree[_-]?sitter\\b"
+      ]
+    },
+    "P22": {
+      "context": [
+        "policy",
+        "authorization"
+      ],
+      "trigger": [
+        "authorization",
+        "merge"
+      ],
+      "structure": [
+        "policy",
+        "floor",
+        "merge",
+        "override",
+        "authorization"
+      ],
+      "effect": [
+        "authorization",
+        "error"
+      ],
+      "negative": [
+        "single_allowlist"
+      ],
+      "note": "Policy merge preserves a protected floor unless authority overrides it.",
+      "cues": [
+        "\\bpolicy[_-]?floor\\b",
+        "\\bminimum[_-]?policy\\b",
+        "\\bdeny[_-]?rules?\\b",
+        "\\bmissing\\w*permissions\\b"
+      ]
+    },
+    "P23": {
+      "context": [
+        "tool",
+        "authorization"
+      ],
+      "trigger": [
+        "tool",
+        "authorization"
+      ],
+      "structure": [
+        "authorization",
+        "sandbox",
+        "profile",
+        "enforcement"
+      ],
+      "effect": [
+        "authorization",
+        "sandbox"
+      ],
+      "negative": [
+        "prompt_warning"
+      ],
+      "note": "Authorization decision and sandbox profile meet at an enforcement point."
+    },
+    "P24": {
+      "context": [
+        "tool",
+        "approval"
+      ],
+      "trigger": [
+        "approval",
+        "authorization"
+      ],
+      "structure": [
+        "approval",
+        "review",
+        "decision",
+        "escalation"
+      ],
+      "effect": [
+        "decision",
+        "approval"
+      ],
+      "negative": [
+        "post_hoc"
+      ],
+      "note": "Risk review blocks execution until an accept/reject/escalate decision.",
+      "cues": [
+        "\\bguardian\\b",
+        "\\bapproval[_-]?(?:request|callback|handler)\\b",
+        "\\breview[_-]?action\\b",
+        "\\bhuman[_-]?approval\\b",
+        "\\bneeds[_-]?approval\\b"
+      ]
+    },
+    "P25": {
+      "context": [
+        "principal",
+        "authorization"
+      ],
+      "trigger": [
+        "authorization",
+        "grant"
+      ],
+      "structure": [
+        "grant",
+        "revocation",
+        "profile",
+        "decision"
+      ],
+      "effect": [
+        "authorization",
+        "grant"
+      ],
+      "negative": [
+        "admin_flag"
+      ],
+      "note": "Principal, scope grant, revocation, and resolution function."
+    },
+    "P26": {
+      "context": [
+        "history",
+        "checkpoint"
+      ],
+      "trigger": [
+        "checkpoint",
+        "branch"
+      ],
+      "structure": [
+        "checkpoint",
+        "ancestry",
+        "branch",
+        "correlation"
+      ],
+      "effect": [
+        "branch",
+        "history"
+      ],
+      "negative": [
+        "workspace_only"
+      ],
+      "note": "History checkpoint with node ancestry and branch creation."
+    },
+    "P27": {
+      "context": [
+        "history",
+        "context"
+      ],
+      "trigger": [
+        "cap",
+        "compaction"
+      ],
+      "structure": [
+        "cap",
+        "compaction",
+        "summarizer",
+        "lineage"
+      ],
+      "effect": [
+        "context",
+        "lineage"
+      ],
+      "negative": [
+        "generic_truncate"
+      ],
+      "note": "Compaction policy retains lineage for removed and retained evidence."
+    },
+    "P28": {
+      "context": [
+        "memory",
+        "update"
+      ],
+      "trigger": [
+        "memory",
+        "update"
+      ],
+      "structure": [
+        "memory",
+        "retrieval",
+        "provenance",
+        "authorization",
+        "revision"
+      ],
+      "effect": [
+        "memory",
+        "retrieval"
+      ],
+      "negative": [
+        "generic_history"
+      ],
+      "note": "Select-consolidate-retrieve-revise memory pipeline with provenance and scope.",
+      "cues": [
+        "\\bmemory[_-]?(?:pipeline|store|update|manager)\\b",
+        "\\bobservational[_-]?memory\\b",
+        "\\bremember\\b",
+        "\\bmemories\\b"
+      ]
+    },
+    "P29": {
+      "context": [
+        "agent",
+        "protocol"
+      ],
+      "trigger": [
+        "protocol",
+        "invocation"
+      ],
+      "structure": [
+        "adapter",
+        "protocol",
+        "identity",
+        "authorization",
+        "service"
+      ],
+      "effect": [
+        "protocol",
+        "authorization"
+      ],
+      "negative": [
+        "signature_only"
+      ],
+      "note": "Protocol adapter maps external identity and capabilities explicitly."
+    },
+    "W01": {
+      "context": [
+        "agent",
+        "stage"
+      ],
+      "trigger": [
+        "stage",
+        "result"
+      ],
+      "structure": [
+        "stage",
+        "schema",
+        "validation",
+        "result"
+      ],
+      "effect": [
+        "stage",
+        "result"
+      ],
+      "negative": [
+        "independent_prompts"
+      ],
+      "note": "Ordered stages exchange a typed intermediate result.",
+      "cues": [
+        "\\bprompt[_-]?chain(?:ing)?\\b",
+        "\\bchain[_-]?(?:prompt|agent)\\b",
+        "\\bsequential[_-]?(?:workflow|pipeline|agent)\\b",
+        "\\bsub-agents?\\s+in\\s+sequence\\b"
+      ]
+    },
+    "W02": {
+      "context": [
+        "agent",
+        "route"
+      ],
+      "trigger": [
+        "route",
+        "decision"
+      ],
+      "structure": [
+        "route",
+        "classifier",
+        "decision",
+        "unsupported"
+      ],
+      "effect": [
+        "decision",
+        "route"
+      ],
+      "negative": [
+        "prompt_if"
+      ],
+      "note": "Input classified into one attributable route with an unsupported case.",
+      "cues": [
+        "\\btriage\\b",
+        "\\bhandoffs?/routing\\b",
+        "\\broute(?:r|s|d|ing)?\\b",
+        "\\bdispatch[_-]?route\\b"
+      ]
+    },
+    "W03": {
+      "context": [
+        "worker",
+        "fanout"
+      ],
+      "trigger": [
+        "fanout",
+        "reducer"
+      ],
+      "structure": [
+        "partition",
+        "worker",
+        "correlation",
+        "reducer"
+      ],
+      "effect": [
+        "reducer",
+        "error"
+      ],
+      "negative": [
+        "no_fan_in"
+      ],
+      "note": "Partitioned fan-out with worker identity and a declared reducer."
+    },
+    "W04": {
+      "context": [
+        "agent",
+        "plan"
+      ],
+      "trigger": [
+        "plan",
+        "delegation"
+      ],
+      "structure": [
+        "plan",
+        "worker",
+        "delegation",
+        "synthesis"
+      ],
+      "effect": [
+        "synthesis",
+        "result"
+      ],
+      "negative": [
+        "fixed_sequence"
+      ],
+      "note": "Generated task plan with worker envelopes and synthesis."
+    },
+    "W05": {
+      "context": [
+        "agent",
+        "evaluator"
+      ],
+      "trigger": [
+        "evaluator",
+        "error"
+      ],
+      "structure": [
+        "generator",
+        "evaluator",
+        "revision",
+        "termination"
+      ],
+      "effect": [
+        "evaluator",
+        "revision"
+      ],
+      "negative": [
+        "self_claim"
+      ],
+      "note": "Generator and evaluator feed a bounded revision loop."
+    },
+    "W06": {
+      "context": [
+        "manager",
+        "worker"
+      ],
+      "trigger": [
+        "delegation",
+        "worker"
+      ],
+      "structure": [
+        "plan",
+        "worker",
+        "integration",
+        "result"
+      ],
+      "effect": [
+        "integration",
+        "result"
+      ],
+      "negative": [
+        "no_integration"
+      ],
+      "note": "Manager-owned plan, specialist work, and integrated response."
+    },
+    "W07": {
+      "context": [
+        "agent",
+        "handoff"
+      ],
+      "trigger": [
+        "handoff",
+        "control"
+      ],
+      "structure": [
+        "handoff",
+        "control",
+        "authority",
+        "history"
+      ],
+      "effect": [
+        "handoff",
+        "authority"
+      ],
+      "negative": [
+        "function_call"
+      ],
+      "note": "Control transfer to a peer with declared history and authority."
+    },
+    "C01": {
+      "context": [
+        "message",
+        "participant"
+      ],
+      "trigger": [
+        "message",
+        "routing"
+      ],
+      "structure": [
+        "mediator",
+        "participant",
+        "routing",
+        "response"
+      ],
+      "effect": [
+        "response",
+        "routing"
+      ],
+      "negative": [
+        "global_object"
+      ],
+      "note": "Participant messages traverse a mediator with routing and response.",
+      "cues": [
+        "\\bmediator\\b",
+        "\\bmessage[_-]?mediator\\b",
+        "\\bcoordination[_-]?interface\\b",
+        "\\bgroup[_-]?chat[_-]?manager\\b"
+      ]
+    },
+    "C02": {
+      "context": [
+        "event",
+        "observer"
+      ],
+      "trigger": [
+        "event",
+        "notification"
+      ],
+      "structure": [
+        "subscription",
+        "event",
+        "observer",
+        "ordering"
+      ],
+      "effect": [
+        "observer",
+        "event"
+      ],
+      "negative": [
+        "polling"
+      ],
+      "note": "Subscription registry notifies currently registered observers.",
+      "cues": [
+        "\\bevent[_-]?emitter\\b",
+        "\\bobserver\\b",
+        "\\badd[_-]?listener\\b",
+        "\\bregister[_-]?(?:listener|observer)\\b",
+        "\\blisteners?\\b"
+      ]
+    },
+    "C03": {
+      "context": [
+        "event",
+        "topic"
+      ],
+      "trigger": [
+        "event",
+        "topic"
+      ],
+      "structure": [
+        "topic",
+        "broker",
+        "subscriber",
+        "delivery"
+      ],
+      "effect": [
+        "subscriber",
+        "delivery"
+      ],
+      "negative": [
+        "direct_dispatch"
+      ],
+      "note": "Topic publication through a broker to matching subscribers."
+    },
+    "C04": {
+      "context": [
+        "service",
+        "registry"
+      ],
+      "trigger": [
+        "registry",
+        "request"
+      ],
+      "structure": [
+        "registry",
+        "schema",
+        "transport",
+        "response",
+        "error"
+      ],
+      "effect": [
+        "response",
+        "error"
+      ],
+      "negative": [
+        "local_factory"
+      ],
+      "note": "Registry-resolved service invocation with transport and error mapping."
+    },
+    "R01": {
+      "context": [
+        "agent",
+        "tool"
+      ],
+      "trigger": [
+        "model",
+        "action"
+      ],
+      "structure": [
+        "reasoning",
+        "action",
+        "observation",
+        "loop"
+      ],
+      "effect": [
+        "observation",
+        "action"
+      ],
+      "negative": [
+        "thought_only"
+      ],
+      "note": "Reasoning action and observation feed the next cycle."
+    },
+    "R02": {
+      "context": [
+        "agent",
+        "feedback"
+      ],
+      "trigger": [
+        "feedback",
+        "memory"
+      ],
+      "structure": [
+        "reflection",
+        "retrieval",
+        "memory",
+        "update"
+      ],
+      "effect": [
+        "retrieval",
+        "memory"
+      ],
+      "negative": [
+        "generic_history"
+      ],
+      "note": "Reflection producer and retrieval key update a scoped memory.",
+      "cues": [
+        "\\bReflexion\\b",
+        "\\bverbal[_-]?reflection\\b",
+        "\\breflection[_-]?memory\\b",
+        "\\bepisodic[_-]?memory\\b",
+        "\\breflect(?:or|ion)\\b"
+      ]
+    },
+    "E01": {
+      "context": [
+        "harness",
+        "base"
+      ],
+      "trigger": [
+        "dispatch",
+        "subtype"
+      ],
+      "structure": [
+        "base",
+        "override",
+        "subtype",
+        "dispatch"
+      ],
+      "effect": [
+        "dispatch",
+        "schema"
+      ],
+      "negative": [
+        "hierarchy_only"
+      ],
+      "note": "Base-typed slot dispatches to an overridden harness implementation."
+    },
+    "E02": {
+      "context": [
+        "harness",
+        "proposal"
+      ],
+      "trigger": [
+        "proposal",
+        "probe"
+      ],
+      "structure": [
+        "proposal",
+        "probe",
+        "evaluator",
+        "composition"
+      ],
+      "effect": [
+        "evaluator",
+        "composition"
+      ],
+      "negative": [
+        "one_shot"
+      ],
+      "note": "Proposal, probe, evaluation, and composition form an edit cycle.",
+      "cues": [
+        "\\bpropose[_-]?probe[_-]?compose\\b",
+        "\\bProposer\\b",
+        "\\bpropose_workers\\b",
+        "\\bproposal\\b.*\\bprobe\\b"
+      ]
+    },
+    "E03": {
+      "context": [
+        "harness",
+        "retry"
+      ],
+      "trigger": [
+        "evaluator",
+        "decision"
+      ],
+      "structure": [
+        "validation",
+        "regularization",
+        "budget",
+        "holdout"
+      ],
+      "effect": [
+        "validation",
+        "holdout"
+      ],
+      "negative": [
+        "no_holdout"
+      ],
+      "note": "Repeated edits regularized against a validation split and final holdout.",
+      "cues": [
+        "\\bregulariz(?:e|ed|ation)\\b",
+        "\\boverfit\\b",
+        "\\bhold[_-]?out\\b",
+        "\\bvalidation[_-]?suite\\b",
+        "\\bleakage[_\\s-]?screen\\b",
+        "\\bcritic\\b"
+      ]
+    },
+    "E04": {
+      "context": [
+        "candidate",
+        "objective"
+      ],
+      "trigger": [
+        "evaluator",
+        "objective"
+      ],
+      "structure": [
+        "objective",
+        "constraint",
+        "candidate",
+        "pareto"
+      ],
+      "effect": [
+        "objective",
+        "pareto"
+      ],
+      "negative": [
+        "single_score"
+      ],
+      "note": "Candidate set evaluated on declared objectives and constraints."
+    },
+    "E05": {
+      "context": [
+        "harness",
+        "component"
+      ],
+      "trigger": [
+        "component",
+        "composition"
+      ],
+      "structure": [
+        "component",
+        "composition",
+        "evaluator",
+        "registry",
+        "provenance"
+      ],
+      "effect": [
+        "composition",
+        "provenance"
+      ],
+      "negative": [
+        "helpers_only"
+      ],
+      "note": "Typed components composed by a builder and evaluated with provenance."
+    },
+    "E06": {
+      "context": [
+        "harness",
+        "policy"
+      ],
+      "trigger": [
+        "evaluator",
+        "proposal"
+      ],
+      "structure": [
+        "harness",
+        "policy",
+        "evaluator",
+        "attribution"
+      ],
+      "effect": [
+        "evaluator",
+        "attribution"
+      ],
+      "negative": [
+        "model_only"
+      ],
+      "note": "Joint harness and policy evaluation with change attribution."
+    },
+    "E07": {
+      "context": [
+        "harness",
+        "program"
+      ],
+      "trigger": [
+        "generator",
+        "candidate"
+      ],
+      "structure": [
+        "generator",
+        "executor",
+        "fitness",
+        "archive"
+      ],
+      "effect": [
+        "fitness",
+        "generator"
+      ],
+      "negative": [
+        "prompt_variation"
+      ],
+      "note": "Executable candidate generation selected through fitness and archive.",
+      "cues": [
+        "\\bprogram[_-]?search\\b",
+        "\\bevolve\\w*\\s+programs?\\b",
+        "\\bAlphaEvolve\\b",
+        "\\bfitness[_-]?evaluation\\b",
+        "\\brun[_-]?evolve[_-]?loop\\b",
+        "\\bevolve[_-]?loop\\b"
+      ]
+    },
+    "E08": {
+      "context": [
+        "agent",
+        "adaptation"
+      ],
+      "trigger": [
+        "adaptation",
+        "evaluator"
+      ],
+      "structure": [
+        "adaptation",
+        "target",
+        "weight",
+        "feedback"
+      ],
+      "effect": [
+        "target",
+        "feedback"
+      ],
+      "negative": [
+        "citation_only"
+      ],
+      "note": "Adaptation controller selects a target from performance and cost feedback."
+    },
+    "E09": {
+      "context": [
+        "planner",
+        "executor"
+      ],
+      "trigger": [
+        "feedback",
+        "executor"
+      ],
+      "structure": [
+        "planner",
+        "executor",
+        "feedback",
+        "synchronization",
+        "authorization"
+      ],
+      "effect": [
+        "feedback",
+        "plan"
+      ],
+      "negative": [
+        "two_loops"
+      ],
+      "note": "Planner and executor linked by attributable feedback and an authority boundary.",
+      "cues": [
+        "\\bdual[_-]?loop\\b",
+        "\\bplanner[_-]?executor\\b",
+        "\\bassistance[_-]?loop\\b",
+        "\\bplanning[_-]?feedback\\b",
+        "\\breactor\\b"
+      ]
+    },
+    "E10": {
+      "context": [
+        "harness",
+        "trace"
+      ],
+      "trigger": [
+        "analyzer",
+        "edit_scope"
+      ],
+      "structure": [
+        "trace",
+        "analyzer",
+        "edit_scope",
+        "evaluator",
+        "regression"
+      ],
+      "effect": [
+        "trace",
+        "evaluator"
+      ],
+      "negative": [
+        "logging_only"
+      ],
+      "note": "Trace analysis proposes a scoped change gated by evaluation and regression.",
+      "cues": [
+        "\\bobservability[_-]?driven\\b",
+        "\\btrace[_-]?(?:guided|driven)\\b",
+        "\\btrajectory[_-]?optimi[sz]ation\\b",
+        "\\bcollect[_\\s-]?logs\\b",
+        "\\bnexau\\b"
+      ]
+    }
+  }
+}
