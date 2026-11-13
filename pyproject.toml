@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pohe-agent"
+version = "0.1.0"
+description = "Detect POHE harness design patterns and plan pattern-guided harness evolution."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Haoyi Xiong"}]
+keywords = ["agent", "harness", "design-patterns", "software-architecture", "repository-mining"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://xhyccc.github.io/pohe/agent.html"
+Repository = "https://github.com/xhyccc/pohe-agent"
+FieldGuide = "https://xhyccc.github.io/pohe/"
+
+[project.scripts]
+pohe-agent = "pohe_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pohe_agent = ["data/*.json"]

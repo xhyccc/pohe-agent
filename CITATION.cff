@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this package, cite the POHE field guide."
+title: "POHE Agent"
+abstract: "A portable agent package and CLI for detecting POHE harness design-pattern cues, adjudicating structural candidates, and planning pattern-guided harness evolution."
+authors:
+  - family-names: Xiong
+    given-names: Haoyi
+    alias: "Haoyi Bertrand Xiong"
+version: 0.1.0
+date-released: 2026-11-13
+license: MIT
+repository-code: "https://github.com/xhyccc/pohe-agent"
+url: "https://xhyccc.github.io/pohe/agent.html"
+references:
+  - type: webpage
+    title: "Pattern-Oriented Harness Engineering"
+    url: "https://xhyccc.github.io/pohe/"

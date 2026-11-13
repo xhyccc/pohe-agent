@@ -1,0 +1,2129 @@
+{
+  "schema_version": "1.0.0",
+  "title": "POHE harness design pattern catalog",
+  "record_count": 52,
+  "source": {
+    "study_revision": "dbb9bf8f685dcf7a219d9440565821c12b715a59",
+    "spec_version": "0.1.0",
+    "method": "Frozen lexical cue plus pointcut and contract specification."
+  },
+  "families": {
+    "P": "Coding-agent mechanisms",
+    "W": "Workflows & coordination",
+    "C": "Communication",
+    "R": "Reasoning & feedback",
+    "E": "Harness evolution"
+  },
+  "patterns": [
+    {
+      "id": "P01",
+      "name": "Minimal linear loop",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Alternate model turns and action execution.",
+      "join_point": "agent_turn_execution",
+      "pointcut": {
+        "context": "A harness executes an agent with at least one model or action turn.",
+        "trigger": "A model response requests tools or another turn.",
+        "structure": "Ordered turn/result records and an explicit repeat-or-terminate decision.",
+        "effect": "Every turn yields a terminal result, a tool action, or another legal turn."
+      },
+      "requires": "Model output, action dispatch, and a termination predicate are available.",
+      "ensures": "Actions are correlated with their turn and a terminal outcome is returned.",
+      "invariant": "Each completed turn has one recorded decision and no unexplained action.",
+      "violation": "Premature stop, malformed action, or repeated retry must terminate or surface an error.",
+      "variation": "Prompt, tool set, stopping predicate, and turn result encoding.",
+      "test_obligation": "Test normal completion, immediate malformed output, and retry exhaustion.",
+      "negative_control": "A one-shot model call with no action cycle does not satisfy the pointcut.",
+      "evolution_question": "Has the loop moved from ad hoc control to a typed runner or state machine?",
+      "aliases": [],
+      "regex": "(?i)\\bwhile\\s+(?:true|not\\s+done)|\\bmax_(?:turns|steps|iterations)\\b|\\brun_(?:loop|until)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 14 (Mini-SWE-Agent, “Minimal Linear Loop”); source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/run_internal/run_loop.py:987",
+        "support": "tests/test_agent_runner.py:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/run_internal/run_loop.py#L987",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/test_agent_runner.py#L1",
+        "note": "Explicit agent turn/tool streaming loop."
+      }
+    },
+    {
+      "id": "P02",
+      "name": "Streaming concurrent batch loop",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Overlap output and independent work.",
+      "join_point": "parallel_invocation_batch",
+      "pointcut": {
+        "context": "Multiple model, tool, or batch tasks are authorized to run concurrently.",
+        "trigger": "A batch is dispatched or streamed.",
+        "structure": "Invocation identity, cancellation control, and result correlation.",
+        "effect": "Streamed or completed results are merged without losing or duplicating ownership."
+      },
+      "requires": "The runtime exposes concurrency and a way to await or cancel outstanding work.",
+      "ensures": "Every accepted invocation is linked to its result or explicit failure.",
+      "invariant": "The harness does not declare completion while unreconciled work remains.",
+      "violation": "Partial failure and cancellation produce explicit terminal states and cleanup.",
+      "variation": "Batch size, asyncio or promise scheduler, streaming reducer, and ordering policy.",
+      "test_obligation": "Test one failure, cancellation, completion order, and concurrent side effects.",
+      "negative_control": "Generic concurrency in an unrelated subsystem does not count.",
+      "evolution_question": "Did concurrency expand from tools to agents and preserve correlation?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:concurrent|parallel(?:ism)?|batch(?:ed|ing)?|Promise\\.all|asyncio\\.gather)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 13 (Claude Code, “Streaming Loop with Concurrent Tool Batching”); shortened label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-sdk/openhands/sdk/agent/parallel_executor.py:51",
+        "support": "tests/sdk/agent/test_parallel_tool_span_context.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-sdk/openhands/sdk/agent/parallel_executor.py#L51",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/agent/test_parallel_tool_span_context.py#L1",
+        "note": "Parallel batch tool executor with asyncio.gather."
+      }
+    },
+    {
+      "id": "P03",
+      "name": "Asynchronous state machine",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Make waiting and resumption explicit.",
+      "join_point": "asynchronous_wait_and_resume",
+      "pointcut": {
+        "context": "A harness run may pause for external work or user input.",
+        "trigger": "An event requests suspension or arrives to resume a paused run.",
+        "structure": "Enumerated states, legal transitions, event identity, and resumption state.",
+        "effect": "A resumed run follows only the legal transition and preserves durable state."
+      },
+      "requires": "State can be serialized or retained and incoming events can be identified.",
+      "ensures": "Accepted events move the machine to a defined state and duplicate events are handled.",
+      "invariant": "No transition crosses from a disallowed state or executes twice after replay.",
+      "violation": "Invalid, duplicate, or interrupted events leave a recoverable state or raise explicitly.",
+      "variation": "Transition dispatch, persistence backend, and recovery policy.",
+      "test_obligation": "Test illegal transitions, duplicate events, interruption, and resume.",
+      "negative_control": "An enum without transition enforcement is not sufficient.",
+      "evolution_question": "Did implicit control flow become an observable durable state machine?",
+      "aliases": [],
+      "regex": "(?i)\\bstate[_-]?machine\\b|\\b(?:transition|transitions|legal_states)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 14 (Codex, “Tokio Async State Machine”); generalized label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "langchain-ai/langgraph",
+        "commit": "5847733bcb186c26b32da5cc822eaf8a89deffeb",
+        "implementation": "libs/langgraph/langgraph/graph/state.py:131",
+        "support": "libs/langgraph/tests/test_subgraph_persistence_async.py:63",
+        "url": "https://github.com/langchain-ai/langgraph/blob/5847733bcb186c26b32da5cc822eaf8a89deffeb/libs/langgraph/langgraph/graph/state.py#L131",
+        "support_url": "https://github.com/langchain-ai/langgraph/blob/5847733bcb186c26b32da5cc822eaf8a89deffeb/libs/langgraph/tests/test_subgraph_persistence_async.py#L63",
+        "note": "State graph with typed transitions and async execution."
+      }
+    },
+    {
+      "id": "P04",
+      "name": "Middleware-pipeline loop",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Layer behavior around model/tool calls.",
+      "join_point": "model_or_tool_call_boundary",
+      "pointcut": {
+        "context": "A harness surrounds model or tool invocation with extensible behavior.",
+        "trigger": "A call enters or leaves the runtime boundary.",
+        "structure": "Ordered middleware entries with a continuation or short-circuit result.",
+        "effect": "Logging, policy, retry, or context behavior runs in declared order."
+      },
+      "requires": "The boundary exposes a composable continuation contract.",
+      "ensures": "Middleware executes in deterministic order and the final result reaches the loop.",
+      "invariant": "A middleware does not silently bypass required downstream layers.",
+      "violation": "Short circuits and exceptions unwind deterministically with one terminal result.",
+      "variation": "Registration order, retry, redaction, tracing, and policy middleware.",
+      "test_obligation": "Test order, short circuit, exception, and repeated side-effect calls.",
+      "negative_control": "A hard-coded helper call is not a middleware pipeline.",
+      "evolution_question": "Did provider-specific logic move into policy or middleware layers?",
+      "aliases": [],
+      "regex": "(?i)\\bmiddleware\\b|\\badd_middleware\\b|\\bon_[a-z_]+\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 14 (Mistral Vibe, “Middleware-Pipeline Loop”); Table 11, p. 52; source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "microsoft/agent-framework",
+        "commit": "71e56792f5dbe401a52360141ea138d613cf65b1",
+        "implementation": "python/packages/core/agent_framework/_middleware.py:860",
+        "support": "python/packages/core/tests/core/test_middleware_context_result.py:46",
+        "url": "https://github.com/microsoft/agent-framework/blob/71e56792f5dbe401a52360141ea138d613cf65b1/python/packages/core/agent_framework/_middleware.py#L860",
+        "support_url": "https://github.com/microsoft/agent-framework/blob/71e56792f5dbe401a52360141ea138d613cf65b1/python/packages/core/tests/core/test_middleware_context_result.py#L46",
+        "note": "Typed agent middleware pipeline."
+      }
+    },
+    {
+      "id": "P05",
+      "name": "Asynchronous-generator loop",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Expose incremental execution events.",
+      "join_point": "incremental_event_stream",
+      "pointcut": {
+        "context": "A consumer observes an agent run incrementally.",
+        "trigger": "The runtime emits a semantic event or streamed token.",
+        "structure": "Async yield/resume, cancellation, and cleanup ownership.",
+        "effect": "Consumers receive ordered events and early exit releases runtime resources."
+      },
+      "requires": "The producer exposes an async iterator or equivalent streaming boundary.",
+      "ensures": "Each emitted event has a stable type and sequence context.",
+      "invariant": "Cancellation and producer failure do not leave unreleased work.",
+      "violation": "Abandoned consumers trigger cancellation or documented cleanup.",
+      "variation": "Stream event schema, backpressure, buffering, and consumer adapters.",
+      "test_obligation": "Test event order, consumer cancellation, producer exception, and cleanup.",
+      "negative_control": "A synchronous list returned at the end is not the streaming pointcut.",
+      "evolution_question": "Did streaming become a first-class typed event surface?",
+      "aliases": [],
+      "regex": "(?i)\\basync\\s+def\\s+\\w+\\([^\\n]*\\).*?yield\\b|\\basync\\s+function\\s*\\*|\\bAsyncGenerator\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 15 (Gemini CLI, “Async-Generator Loop”); source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/models/chatcmpl_stream_handler.py:603",
+        "support": "tests/test_stream_events.py:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/models/chatcmpl_stream_handler.py#L603",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/test_stream_events.py#L1",
+        "note": "Async generator yields incremental response events."
+      }
+    },
+    {
+      "id": "P06",
+      "name": "Functional core and steering queues",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Separate transitions from live control.",
+      "join_point": "transition_core_with_live_input",
+      "pointcut": {
+        "context": "A run accepts steering or queued input while transitions continue.",
+        "trigger": "A new steering message or input item is enqueued.",
+        "structure": "A transition core plus queued control messages and defined application points.",
+        "effect": "The transition consumes or defers steering with explicit ordering semantics."
+      },
+      "requires": "Steering messages have identity and a defined queue boundary.",
+      "ensures": "Transition state changes only through the core and replayable control inputs.",
+      "invariant": "Live input cannot mutate shared state nondeterministically outside the queue.",
+      "violation": "Queue overflow, conflict, or replay produces explicit policy outcomes.",
+      "variation": "In-memory or durable inbox, priority, coalescing, and effect handlers.",
+      "test_obligation": "Test injection timing, duplicate steering, replay, and conflicting messages.",
+      "negative_control": "A mutable global message list without transition semantics is insufficient.",
+      "evolution_question": "Did steering evolve from prompt text to durable typed control?",
+      "aliases": [],
+      "regex": "(?i)\\bsteering\\b|\\beffect\\s+handler\\b|\\bfunctional\\s+core\\b|\\bsteering_queue\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 15 (Pi, “Functional Core with Steering Queues”); source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "anomalyco/opencode",
+        "commit": "885df74024b6b540b63bfd487014252227713ea7",
+        "implementation": "packages/core/src/session/inbox.ts:54",
+        "support": "packages/core/test/session-runner.test.ts:1",
+        "url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/src/session/inbox.ts#L54",
+        "support_url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/test/session-runner.test.ts#L1",
+        "note": "Durable steering/input inbox variants."
+      }
+    },
+    {
+      "id": "P07",
+      "name": "Cache-dialect fanout",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Adapt caching to provider-specific interfaces.",
+      "join_point": "provider_request_construction",
+      "pointcut": {
+        "context": "A request is built for a provider with cacheable context.",
+        "trigger": "A cache key, hint, or control record is attached.",
+        "structure": "Provider dialect adapter, cache identity, and response association.",
+        "effect": "Compatible cache controls are encoded and unsupported controls are rejected or omitted."
+      },
+      "requires": "Provider capability and cache identity are known before dispatch.",
+      "ensures": "Cache control maps to the request without changing semantic content.",
+      "invariant": "Cache identity never crosses user, tenant, or incompatible provider boundaries.",
+      "violation": "Unsupported or invalid hints degrade explicitly without silent semantic drift.",
+      "variation": "Prompt cache keys, cache-control blocks, TTLs, and dialect adapters.",
+      "test_obligation": "Test identity collisions, invalidation, unsupported providers, and privacy boundaries.",
+      "negative_control": "A generic response cache is not provider-dialect cache control.",
+      "evolution_question": "Did cache hints become provider-capability-driven adapters?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:prompt[_-]?cache|cache[_-]?control|cache[_-]?key|cache[_-]?hint|dialect)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., Table 12, p. 53 (OpenCode, “Cache-Dialect Fanout”); source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/run_internal/prompt_cache_key.py:17",
+        "support": "tests/test_prompt_cache_key.py:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/run_internal/prompt_cache_key.py#L17",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/test_prompt_cache_key.py#L1",
+        "note": "Provider-aware prompt-cache key resolution."
+      }
+    },
+    {
+      "id": "P08",
+      "name": "Multi-provider transport abstraction",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Swap model backends.",
+      "join_point": "model_backend_resolution",
+      "pointcut": {
+        "context": "A harness can select among model backends.",
+        "trigger": "The runtime resolves or invokes a model provider.",
+        "structure": "A shared request/response/error boundary plus provider-specific implementations.",
+        "effect": "Backends are interchangeable through a declared interface, with differences exposed."
+      },
+      "requires": "Provider identity, model configuration, and common result types are available.",
+      "ensures": "Every provider satisfies the same invocation contract or reports unsupported behavior.",
+      "invariant": "Provider-specific state remains behind the adapter boundary.",
+      "violation": "Authentication, rate, schema, and capability errors map to explicit types.",
+      "variation": "Registry, factory, adapter, transport, retry advice, and capability discovery.",
+      "test_obligation": "Test two providers, unsupported tools, usage mapping, and error translation.",
+      "negative_control": "A single hard-coded vendor client is not the abstraction.",
+      "evolution_question": "Did the common interface expand while provider differences stayed explicit?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:model[_-]?provider|provider[_-]?model|model[_-]?adapter|LLMClient|ModelClient)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §7.1, p. 18 (“Provider Abstraction Spectrum: multi-provider via an abstraction layer or owned transports”); merged label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/models/interface.py:150",
+        "support": "tests/models/test_reasoning_content.py:25",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/models/interface.py#L150",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/models/test_reasoning_content.py#L25",
+        "note": "Abstract ModelProvider boundary."
+      }
+    },
+    {
+      "id": "P09",
+      "name": "Deferred tool loading",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Discover capabilities only when needed.",
+      "join_point": "tool_discovery_to_invocation",
+      "pointcut": {
+        "context": "Available tools are too numerous or expensive to expose eagerly.",
+        "trigger": "The agent searches, discovers, or lazily resolves a tool.",
+        "structure": "Discovery descriptor, registry, authorization check, and invocation handle.",
+        "effect": "Tool schema is loaded on demand and authority is checked before execution."
+      },
+      "requires": "Tools have discoverable metadata and a stable invocation identity.",
+      "ensures": "A discovered tool can be invoked once with its own schema and current permissions.",
+      "invariant": "Lazy loading does not cache a stale authorization decision.",
+      "violation": "Unknown, stale, or unauthorized tools fail explicitly before side effects.",
+      "variation": "Search tool, registry, namespace, loading scope, and cache policy.",
+      "test_obligation": "Test discovery latency path, missing tool, revoked permission, and schema refresh.",
+      "negative_control": "A large static tool list does not satisfy deferred loading.",
+      "evolution_question": "Did deferred loading add authorization and lifecycle semantics?",
+      "aliases": [],
+      "regex": "(?i)\\bdeferred(?:[_-]?\\w+)?\\b|\\blazy[_-]?(?:tool|load)|\\btool[_-]?search\\b|\\bdiscover[_-]?tools\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §8.3, p. 27 (“Deferred Tool Loading”); Table 11, p. 52; source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/tool.py:1641",
+        "support": "tests/test_run_internal_items.py:279",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/tool.py#L1641",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/test_run_internal_items.py#L279",
+        "note": "Hosted tool-search surface for deferred tools."
+      }
+    },
+    {
+      "id": "P10",
+      "name": "Capped output and remediation errors",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1",
+        "A2"
+      ],
+      "problem": "Bound observations while enabling recovery.",
+      "join_point": "observation_boundary",
+      "pointcut": {
+        "context": "A tool or environment can emit output larger than the context allowance.",
+        "trigger": "Output crosses a size or token cap.",
+        "structure": "Limit policy, truncation metadata, and access to complete artifacts.",
+        "effect": "The harness returns a bounded observation with explicit recovery information."
+      },
+      "requires": "Output size is measurable and original content remains addressable.",
+      "ensures": "The consumer knows truncation occurred and can seek the full result.",
+      "invariant": "Truncation never masquerades as complete evidence.",
+      "violation": "Oversized or unavailable output returns a typed remediation error.",
+      "variation": "Character, line, token, structure-aware caps, summaries, and repair hints.",
+      "test_obligation": "Test exact limit, over-limit, non-UTF8, complete-artifact retrieval, and retry.",
+      "negative_control": "A logging length limit unrelated to agent observations does not count.",
+      "evolution_question": "Did remediation become a typed contract rather than only text truncation?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:max_output|output[_-]?limit|truncat(?:e|ed|ion)|remediat(?:e|ion))\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/sandbox/util/token_truncation.py:73",
+        "support": "tests/sandbox/test_token_truncation.py:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/sandbox/util/token_truncation.py#L73",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/sandbox/test_token_truncation.py#L1",
+        "note": "Bounded output with explicit truncation metadata."
+      }
+    },
+    {
+      "id": "P11",
+      "name": "Tool-workflow boundary",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Distinguish an operation from an orchestration.",
+      "join_point": "operation_versus_orchestration",
+      "pointcut": {
+        "context": "The harness exposes both primitive effects and multi-step procedures.",
+        "trigger": "The agent chooses a tool or workflow entry point.",
+        "structure": "Separate effect/result contracts and workflow ownership of sequencing.",
+        "effect": "Workflow orchestration is not mistaken for a single external side effect."
+      },
+      "requires": "Tool and workflow descriptors have distinct schemas and execution paths.",
+      "ensures": "Retry, budget, and result accounting bind to the correct unit.",
+      "invariant": "A workflow cannot hide duplicate irreversible tool effects.",
+      "violation": "Nested failures and retries produce explicit ownership and cost records.",
+      "variation": "Workflow DSL, composite tool, procedure service, and sub-agent workflow.",
+      "test_obligation": "Test retry inside workflow, duplicate steps, and result aggregation.",
+      "negative_control": "A single function that happens to call another function is not enough.",
+      "evolution_question": "Did workflow abstractions emerge to contain orchestration complexity?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:tool[_-]?workflow|workflow[_-]?tool|workflow)\\b.*\\b(?:tool|agent)\\b|\\b(?:tool|agent)\\b.*\\bworkflow\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §14.1, p. 59 (Signal 3, “The disappearing boundary between tool and workflow”); our reframing as a boundary to declare",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-tools/openhands/tools/workflow/definition.py:1",
+        "support": "tests/tools/workflow/test_workflow_tool.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-tools/openhands/tools/workflow/definition.py#L1",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/tools/workflow/test_workflow_tool.py#L1",
+        "note": "Workflow definition distinct from tool invocation."
+      }
+    },
+    {
+      "id": "P12",
+      "name": "Coordinator-worker spawn flow",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Delegate bounded subtasks.",
+      "join_point": "delegated_task_spawn",
+      "pointcut": {
+        "context": "A coordinator delegates a bounded task to another execution unit.",
+        "trigger": "A worker is spawned, called as a tool, or handed a task.",
+        "structure": "Task envelope with identity, instructions, authority, budget, and result target.",
+        "effect": "Worker output returns to the coordinator with explicit lifecycle and provenance."
+      },
+      "requires": "Parent and child identities, task scope, and shared data policy are known.",
+      "ensures": "Each worker has one task record, bounded authority, and a correlated result.",
+      "invariant": "Delegation never silently expands permissions or budget.",
+      "violation": "Cancellation, worker failure, timeout, and duplicate spawn are typed outcomes.",
+      "variation": "Sub-agent, agent-as-tool, background agent, child session, and worker pool.",
+      "test_obligation": "Test authority, timeout, cancellation, duplicate results, and context isolation.",
+      "negative_control": "Sequential calls to independent agents without delegation do not count.",
+      "evolution_question": "Did delegation gain nested history, approvals, and background lifecycle?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:spawn(?:ed|ing)?|sub[_-]?agent|worker[_-]?agent|delegate(?:d|s|ion)?)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.4, p. 16 (“Coordinator-Worker Pattern”); Table 11 “Recursive Composition”, p. 52; adapted label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-sdk/openhands/sdk/subagent/schema.py:202",
+        "support": "tests/sdk/subagent/test_subagent_registry.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-sdk/openhands/sdk/subagent/schema.py#L202",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/subagent/test_subagent_registry.py#L1",
+        "note": "Subagent task and permission envelope."
+      }
+    },
+    {
+      "id": "P13",
+      "name": "Log-as-queue loops",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Drive work from a durable execution record.",
+      "join_point": "durable_work_consumption",
+      "pointcut": {
+        "context": "New work is represented by durable append-only records.",
+        "trigger": "A consumer polls or subscribes to unseen records.",
+        "structure": "Event identity, append order, consumer cursor, and acknowledgement.",
+        "effect": "Work advances from the log without replaying already completed effects."
+      },
+      "requires": "Records have stable identity and consumers retain progress.",
+      "ensures": "Each effectful unit has an idempotency or acknowledgement rule.",
+      "invariant": "Consumer crash does not erase unacknowledged work.",
+      "violation": "Duplicate delivery is deduplicated or documented as at-least-once.",
+      "variation": "SQL log, file log, queue adapter, polling, and projection.",
+      "test_obligation": "Test crash before ack, duplicate delivery, out-of-order reads, and replay.",
+      "negative_control": "An in-memory queue is not log-as-queue.",
+      "evolution_question": "Did durable task records become the scheduling substrate?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:event[_-]?log|append[_-]?(?:event|item)|event[_-]?queue|log[_-]?as[_-]?queue)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/automation",
+        "commit": "3ddfee594d2177ab368772bc03c25f2dda103c9b",
+        "implementation": "openhands/automation/models.py:222",
+        "support": "tests/test_scheduler.py:703",
+        "url": "https://github.com/OpenHands/automation/blob/3ddfee594d2177ab368772bc03c25f2dda103c9b/openhands/automation/models.py#L222",
+        "support_url": "https://github.com/OpenHands/automation/blob/3ddfee594d2177ab368772bc03c25f2dda103c9b/tests/test_scheduler.py#L703",
+        "note": "Persistent event table doubles as a poller-consumed work queue."
+      }
+    },
+    {
+      "id": "P14",
+      "name": "Event-sourced conversation engine",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Reconstruct state from recorded events.",
+      "join_point": "conversation_state_projection",
+      "pointcut": {
+        "context": "Conversation state is derived from recorded events.",
+        "trigger": "A new event is appended or history is loaded.",
+        "structure": "Event schema, sequence or identity rules, and a projector.",
+        "effect": "The current view is reproducible from the event history."
+      },
+      "requires": "Events are immutable enough to replay and schema versions are identifiable.",
+      "ensures": "Applying the same ordered events yields the same semantic state.",
+      "invariant": "Projection never mutates historical event identity.",
+      "violation": "Missing, incompatible, or corrupt events produce recoverable migration or rejection.",
+      "variation": "Event type unions, snapshots, migrations, local or remote persistence.",
+      "test_obligation": "Test full replay, snapshot-plus-tail replay, schema evolution, and partial history.",
+      "negative_control": "A mutable message array without projection semantics is insufficient.",
+      "evolution_question": "Did conversation state move behind an append-and-project boundary?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:event[_-]?sourc(?:e|ed|ing)|conversation[_-]?events|append[_-]?event|projection)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-sdk/openhands/sdk/conversation/state.py:342",
+        "support": "tests/sdk/conversation/local/test_state_serialization.py:234",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-sdk/openhands/sdk/conversation/state.py#L342",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/conversation/local/test_state_serialization.py#L234",
+        "note": "State updated by appending events and rebuilding a view."
+      }
+    },
+    {
+      "id": "P15",
+      "name": "Declarative skills",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Package reusable task procedures.",
+      "join_point": "reusable_procedure_loading",
+      "pointcut": {
+        "context": "A harness can load task procedures from repository or user artifacts.",
+        "trigger": "A skill is discovered, selected, or invoked.",
+        "structure": "Manifest or skill file, provenance, resource bundle, loader, and execution boundary.",
+        "effect": "Instructions and resources become available with visible source and authority."
+      },
+      "requires": "Skill identity and source location are discoverable.",
+      "ensures": "Loaded content is scoped to a run and stale or conflicting versions are detectable.",
+      "invariant": "Skill metadata cannot silently grant permissions or replace protected instructions.",
+      "violation": "Missing, malformed, stale, or unauthorized skills fail explicitly.",
+      "variation": "SKILL.md, plugin manifest, remote registry, and namespaced resources.",
+      "test_obligation": "Test discovery, version collision, malformed manifest, and authority boundary.",
+      "negative_control": "A prompt template string without discovery or resource boundaries is not enough.",
+      "evolution_question": "Did skill loading add provenance, templates, and execution policy?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:skills?[_-]?(?:loader|registry|catalog|service)|load[_-]?skills?|SKILL\\.md)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-sdk/openhands/sdk/skills/skill.py:179",
+        "support": "tests/sdk/skills/test_skill_md_convention.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-sdk/openhands/sdk/skills/skill.py#L179",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/skills/test_skill_md_convention.py#L1",
+        "note": "Skill manifest and SKILL.md loader."
+      }
+    },
+    {
+      "id": "P16",
+      "name": "Hooks and event bus",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Extend behavior at named events.",
+      "join_point": "named_lifecycle_event",
+      "pointcut": {
+        "context": "Harness lifecycle emits named events or hook points.",
+        "trigger": "A model, tool, turn, or agent event is published.",
+        "structure": "Event schema, registration, handler ordering, and interception result.",
+        "effect": "Registered handlers observe or transform behavior at the declared point."
+      },
+      "requires": "Event names and payload schemas are stable within a run.",
+      "ensures": "Handler order and whether a result may be modified are explicit.",
+      "invariant": "A handler cannot create an undetected recursive event storm.",
+      "violation": "Handler failure and reentrancy have defined isolation or propagation behavior.",
+      "variation": "Hook registry, event bus, observer, middleware, and priority.",
+      "test_obligation": "Test order, reentrancy, exception, unsubscribe, and conflicting handlers.",
+      "negative_control": "A direct logging statement is not an extensible hook.",
+      "evolution_question": "Did events move from ad hoc callbacks to a typed lifecycle vocabulary?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:event[_-]?bus|hooks?[_-]?(?:manager|registry|system)|register[_-]?hook|subscribe)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "microsoft/agent-framework",
+        "commit": "71e56792f5dbe401a52360141ea138d613cf65b1",
+        "implementation": "python/packages/core/agent_framework/_agent_hooks.py:3",
+        "support": "python/packages/core/tests/core/test_agent_hooks.py:189",
+        "url": "https://github.com/microsoft/agent-framework/blob/71e56792f5dbe401a52360141ea138d613cf65b1/python/packages/core/agent_framework/_agent_hooks.py#L3",
+        "support_url": "https://github.com/microsoft/agent-framework/blob/71e56792f5dbe401a52360141ea138d613cf65b1/python/packages/core/tests/core/test_agent_hooks.py#L189",
+        "note": "Named hook lifecycle and enforcement middleware."
+      }
+    },
+    {
+      "id": "P17",
+      "name": "Verify-on-stop guards",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Check artifacts before accepting completion.",
+      "join_point": "terminal_acceptance_interception",
+      "pointcut": {
+        "context": "The agent proposes completion after producing an artifact.",
+        "trigger": "A stop or finish action is requested.",
+        "structure": "Exit interception, verifier execution, and accept-or-continue result.",
+        "effect": "The stop is accepted only after the verifier reports sufficient evidence."
+      },
+      "requires": "Stop can be intercepted and at least one verification is available.",
+      "ensures": "Failed verification returns actionable feedback or blocks completion.",
+      "invariant": "The same acceptance gate cannot be bypassed by another stop path.",
+      "violation": "Unavailable or flaky verifier yields explicit unknown or failure, not silent success.",
+      "variation": "Project test commands, acceptance hooks, verifier agents, and blocking policies.",
+      "test_obligation": "Test pass, fail-and-continue, verifier error, repeated stop, and bypass route.",
+      "negative_control": "Tests run by the user after the run are not verify-on-stop.",
+      "evolution_question": "Did completion verification become mandatory rather than advisory?",
+      "aliases": [
+        "verifyonstop",
+        "beforestop",
+        "stopverify",
+        "completioncheck",
+        "acceptancecheck"
+      ],
+      "regex": "(?i)\\b(?:verify[_-]?on[_-]?stop|before[_-]?stop|stop[_-]?verif|completion[_-]?check|acceptance[_-]?check)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 15 (Hermes stop-guards); Table 12 “Outer Verification Loop”, p. 53; source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "Darwin-Agent/HarnessX",
+        "commit": "ccb411691343d06b4a5c44c4e11104d694318e8f",
+        "implementation": "harnessx/processors/control/self_verify.py:95",
+        "support": "tests/unit/test_processor_triggers.py:336",
+        "url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/harnessx/processors/control/self_verify.py#L95",
+        "support_url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/tests/unit/test_processor_triggers.py#L336",
+        "note": "Task-end self-verification processor."
+      }
+    },
+    {
+      "id": "P18",
+      "name": "Hybrid loop detection",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Detect stalled or repetitive behavior.",
+      "join_point": "repetitive_behavior_observation",
+      "pointcut": {
+        "context": "Successive agent observations or actions can repeat without progress.",
+        "trigger": "A loop signal crosses a configured threshold or composite condition.",
+        "structure": "Repetition signals, thresholds, and an intervention interface.",
+        "effect": "The harness diagnoses a loop and stops, redirects, or escalates."
+      },
+      "requires": "Action or observation history is available in comparable form.",
+      "ensures": "Intervention is attributed to explicit evidence and recorded in the trace.",
+      "invariant": "A detector cannot block all exploration solely because outputs are similar.",
+      "violation": "Detector error, disabled mode, or false positive has a recoverable path.",
+      "variation": "Action repetition, observation similarity, semantic signals, and composite thresholds.",
+      "test_obligation": "Test exact repeats, productive variation, false positives, and intervention.",
+      "negative_control": "A recursion depth limit alone is not semantic loop detection.",
+      "evolution_question": "Did repetition detection move from prompt advice to executable intervention?",
+      "aliases": [
+        "loopdetect",
+        "doomloop",
+        "repetitiondetect",
+        "stuckloop"
+      ],
+      "regex": "(?i)\\b(?:loop[_-]?detect(?:ion|or)?|doom[_-]?loop|repetition[_-]?detect|stuck[_-]?(?:detect|loop))\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 15 (Gemini CLI, “Hybrid Loop Detection”); Table 11 “Stuck Detection”, p. 52; source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "Darwin-Agent/HarnessX",
+        "commit": "ccb411691343d06b4a5c44c4e11104d694318e8f",
+        "implementation": "harnessx/processors/control/loop_detection.py:38",
+        "support": "tests/unit/test_processor_triggers.py:135",
+        "url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/harnessx/processors/control/loop_detection.py#L38",
+        "support_url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/tests/unit/test_processor_triggers.py#L135",
+        "note": "Repeated-call loop detector."
+      }
+    },
+    {
+      "id": "P19",
+      "name": "Budgeted loop with caps",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Bound execution resources.",
+      "join_point": "resource_accounting_cycle",
+      "pointcut": {
+        "context": "The harness can consume bounded turns, steps, tokens, time, or cost.",
+        "trigger": "Accounting approaches or exceeds a configured cap.",
+        "structure": "Resource ledger, cap policy, terminal reason, and optional escalation.",
+        "effect": "Execution stops or changes policy before an unaccounted resource overrun."
+      },
+      "requires": "Relevant resource use is observable and shared with delegated work.",
+      "ensures": "Exhaustion produces a distinct terminal outcome and records the responsible cap.",
+      "invariant": "Budget exhaustion is never reported as task success.",
+      "violation": "Missing accounting or handler failure falls back to a safe terminal policy.",
+      "variation": "Step, turn, token, cost, wall-clock, delegation, and per-task budgets.",
+      "test_obligation": "Test exact cap, overshoot, parallel accounting, child work, and custom handler.",
+      "negative_control": "A constant limit in an unrelated library does not meet the pointcut.",
+      "evolution_question": "Did simple counters evolve into typed exhaustion and recovery contracts?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:max_(?:turns|steps|iterations)|step[_-]?limit|budget[_-]?(?:policy|limit)|token[_-]?budget)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §6.2, p. 15 (Hermes, “Budgeted Loop with Stop-Guards”); adapted label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "anomalyco/opencode",
+        "commit": "885df74024b6b540b63bfd487014252227713ea7",
+        "implementation": "packages/core/src/session/runner/max-steps.ts:1",
+        "support": "packages/core/test/session-runner.test.ts:1",
+        "url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/src/session/runner/max-steps.ts#L1",
+        "support_url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/test/session-runner.test.ts#L1",
+        "note": "Maximum-step terminal policy."
+      }
+    },
+    {
+      "id": "P20",
+      "name": "Reflection-augmented loop",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2",
+        "A3"
+      ],
+      "problem": "Use feedback to revise attempts.",
+      "join_point": "failed_attempt_feedback",
+      "pointcut": {
+        "context": "An attempt can be evaluated before a further attempt.",
+        "trigger": "The attempt fails or receives a critique.",
+        "structure": "Attempt record, feedback producer, revision input, and retry bound.",
+        "effect": "A revised attempt uses recorded feedback while preserving attempt lineage."
+      },
+      "requires": "Failure evidence and remaining retry budget are available.",
+      "ensures": "Feedback is attached to the attempt that produced it and is visible to revision.",
+      "invariant": "Self-critique is not represented as independent verification.",
+      "violation": "Empty, contradictory, or exhausted feedback terminates or escalates.",
+      "variation": "Self-critique, external evaluator, memory injection, and iterative refinement.",
+      "test_obligation": "Test useful feedback, contradictory feedback, exhaustion, and repeated error.",
+      "negative_control": "A static system prompt asking the model to reflect is not enough.",
+      "evolution_question": "Did reflection add independent evaluation and bounded convergence?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:reflection|self[_-]?critique|critique|reflexion)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "examples/01_standalone_sdk/31_iterative_refinement.py:370",
+        "support": "tests/sdk/agent/test_iterative_refinement.py:111",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/examples/01_standalone_sdk/31_iterative_refinement.py#L370",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/agent/test_iterative_refinement.py#L111",
+        "note": "Attempt-feedback-refinement loop."
+      }
+    },
+    {
+      "id": "P21",
+      "name": "Syntax-aware command permissioning",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Inspect command structure before execution.",
+      "join_point": "command_authorization_boundary",
+      "pointcut": {
+        "context": "An agent proposes a shell command with security-relevant structure.",
+        "trigger": "The command is about to be parsed, classified, or executed.",
+        "structure": "Shell parser, normalized command tree, policy evaluator, and execution handoff.",
+        "effect": "Authorization uses parsed operations and a parse failure cannot fall through to execution."
+      },
+      "requires": "The command is representable by a parser or rejected before execution.",
+      "ensures": "Every subcommand and redirection is covered by a policy decision.",
+      "invariant": "Parsed intent and executed command refer to the same normalized operation.",
+      "violation": "Unsupported syntax fails closed or requests explicit review.",
+      "variation": "Tree-sitter or shell AST, policy language, command aliases, and escalation.",
+      "test_obligation": "Test pipes, substitutions, quoting, malformed input, and policy bypass attempts.",
+      "negative_control": "A substring denylist is not syntax-aware permissioning.",
+      "evolution_question": "Did policy move from string matching to parsed operation boundaries?",
+      "aliases": [
+        "shellparse",
+        "commandparse",
+        "syntaxaware",
+        "authorizecommand"
+      ],
+      "regex": "(?i)\\b(?:shell[_-]?pars|command[_-]?pars|bash[_-]?pars|syntax[_-]?aware|authorize[_-]?command)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §10.9, p. 39 (OpenCode); Table 12 “Syntax-Aware Command Permissioning”, p. 53; source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-sdk/openhands/sdk/security/shell_parser.py:58",
+        "support": "tests/sdk/security/test_shell_parser.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-sdk/openhands/sdk/security/shell_parser.py#L58",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/security/test_shell_parser.py#L1",
+        "note": "Tree-sitter shell parse before policy evaluation."
+      }
+    },
+    {
+      "id": "P22",
+      "name": "Policy floor",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Preserve minimum restrictions across customization.",
+      "join_point": "policy_composition",
+      "pointcut": {
+        "context": "Multiple general, project, user, or session policies are merged.",
+        "trigger": "A proposed action is authorized under composite policy.",
+        "structure": "Minimum floor rules, merge operator, and privileged override path.",
+        "effect": "Composition cannot weaken protected restrictions without explicit authority."
+      },
+      "requires": "Rule identity and priority or set semantics are defined.",
+      "ensures": "The merged result is at least as restrictive as every floor obligation.",
+      "invariant": "Local customization cannot silently erase a protected deny rule.",
+      "violation": "Conflicts produce deny, escalation, or explicit configured precedence.",
+      "variation": "Intersection, ordered layers, scoped profiles, and administrative overrides.",
+      "test_obligation": "Test widening, conflicting rules, missing policy, and privileged override.",
+      "negative_control": "A single configurable allowlist has no composition floor.",
+      "evolution_question": "Did policy composition become monotonic with explicit exceptions?",
+      "aliases": [
+        "policyfloor",
+        "minimumpolicy",
+        "denyrules",
+        "policycomposition"
+      ],
+      "regex": "(?i)\\b(?:policy[_-]?floor|minimum[_-]?policy|deny[_-]?rules?|policy[_-]?composition)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §10.7, p. 38 (Hermes, “A Policy Floor That Survives YOLO”); source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "anomalyco/opencode",
+        "commit": "885df74024b6b540b63bfd487014252227713ea7",
+        "implementation": "packages/core/src/permission.ts:20",
+        "support": "packages/core/test/permission.test.ts:1",
+        "url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/src/permission.ts#L20",
+        "support_url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/test/permission.test.ts#L1",
+        "note": "Missing agent permissions resolve to deny-all, then merge with session policy."
+      }
+    },
+    {
+      "id": "P23",
+      "name": "Layered permission and sandbox",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Combine policy decisions with execution isolation.",
+      "join_point": "authorized_action_environment",
+      "pointcut": {
+        "context": "A tool action is evaluated by policy and executed in a controlled environment.",
+        "trigger": "A privileged operation or command is dispatched.",
+        "structure": "Authorization decision, sandbox profile, environment adapter, and enforcement point.",
+        "effect": "The effective capability equals the authorized capability, including filesystem and network."
+      },
+      "requires": "Requested operation and active environment policy are both observable.",
+      "ensures": "Any difference between approval and enforcement fails closed or asks for escalation.",
+      "invariant": "A policy decision cannot be bypassed by switching sandbox or transport backend.",
+      "violation": "Enforcement errors deny execution and preserve actionable diagnostics.",
+      "variation": "OS sandbox, container, mount policy, network rules, and approval mode.",
+      "test_obligation": "Test each backend, denied write/network, cross-backend parity, and escape attempts.",
+      "negative_control": "A prompt warning without execution enforcement is not a sandbox.",
+      "evolution_question": "Did one policy surface evolve into layered cross-platform enforcement?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:sandbox|container|permission[_-]?profile|policy[_-]?engine)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §10.1, p. 35 (Claude Code, “Three-Layered Permission System”); §10.2, p. 36 (Codex permission stack with native sandboxing); merged label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/sandbox/sandbox_agent.py:31",
+        "support": "tests/sandbox/test_mount_security.py:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/sandbox/sandbox_agent.py#L31",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/sandbox/test_mount_security.py#L1",
+        "note": "Sandbox-backed agent with approvals and workspace isolation."
+      }
+    },
+    {
+      "id": "P24",
+      "name": "Guardian approval reviewer",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Review risky proposed actions.",
+      "join_point": "risky_action_escalation",
+      "pointcut": {
+        "context": "A proposed tool action is classified as requiring review.",
+        "trigger": "Policy requests approval or an automated reviewer detects risk.",
+        "structure": "Review request, reviewer context, decision reason, and approve/reject/escalate path.",
+        "effect": "The action waits for and executes only after an accepted decision."
+      },
+      "requires": "Proposed action identity, risk context, and authority source are available.",
+      "ensures": "The approval binds to the exact action and records the decision.",
+      "invariant": "Review cannot silently execute while pending or accept a different action.",
+      "violation": "Timeout, reviewer failure, or rejection blocks execution with a typed outcome.",
+      "variation": "Human prompt, reviewer agent, policy guardian, callback, and resumable interruption.",
+      "test_obligation": "Test approve, reject, timeout, altered arguments, nested action, and bypass.",
+      "negative_control": "A post-hoc warning after execution is not an approval gate.",
+      "evolution_question": "Did confirmation evolve into action-bound interruption and resumption?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:guardian|approval[_-]?(?:request|callback|handler)|review[_-]?action|human[_-]?approval)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §10.2, p. 36 (Codex, “Guardian, an LLM Approval Reviewer”); source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/tool.py:1498",
+        "support": "tests/test_function_tool_approval_arguments.py:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/tool.py#L1498",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/test_function_tool_approval_arguments.py#L1",
+        "note": "Tool approval interruption and on-approval handler."
+      }
+    },
+    {
+      "id": "P25",
+      "name": "Scope-based authorization and profiles",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A2"
+      ],
+      "problem": "Bind capabilities to explicit scopes.",
+      "join_point": "capability_resolution",
+      "pointcut": {
+        "context": "A caller invokes a method or service with an operator, session, or agent identity.",
+        "trigger": "Capability is checked against a requested scope.",
+        "structure": "Scope identity, profile, grant and revocation state, and resolution function.",
+        "effect": "The call is permitted only if the principal currently holds a covering scope."
+      },
+      "requires": "Principal identity and requested capability are explicit.",
+      "ensures": "Authorization is evaluated at the call boundary and records the covering scope.",
+      "invariant": "Scopes are not inherited beyond declared containment or lifetime.",
+      "violation": "Missing, expired, revoked, or cross-scope capabilities are denied explicitly.",
+      "variation": "Method scopes, roles, session grants, profiles, and delegated identities.",
+      "test_obligation": "Test widening, revocation, expiration, child agent, and cross-tenant access.",
+      "negative_control": "A boolean admin flag is not a scope model.",
+      "evolution_question": "Did coarse permissions become composable capability scopes?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:scope[sd]?|capabilit(?:y|ies)|authorization[_-]?profile|permission[_-]?scope)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §10.4, p. 37 (OpenClaw, “Scope-Based Authorization”); §10.6, p. 38 (Mistral Vibe agent-profile gates); merged label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openclaw/openclaw",
+        "commit": "60a2e23d542227f0abc73760a25d1b50f3d13915",
+        "implementation": "src/gateway/method-scopes.ts:215",
+        "support": "src/shared/operator-scope-compat.test.ts:64",
+        "url": "https://github.com/openclaw/openclaw/blob/60a2e23d542227f0abc73760a25d1b50f3d13915/src/gateway/method-scopes.ts#L215",
+        "support_url": "https://github.com/openclaw/openclaw/blob/60a2e23d542227f0abc73760a25d1b50f3d13915/src/shared/operator-scope-compat.test.ts#L64",
+        "note": "Least-privilege operator scopes per method."
+      }
+    },
+    {
+      "id": "P26",
+      "name": "Session-tree version control",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A3"
+      ],
+      "problem": "Branch or revisit execution history.",
+      "join_point": "conversation_history_branch",
+      "pointcut": {
+        "context": "Execution history can be checkpointed and branched.",
+        "trigger": "A fork, checkout, rewind, or restore is requested at an event boundary.",
+        "structure": "Node identity, ancestry, checkpoint payload, and branch creation operation.",
+        "effect": "The new branch starts from the requested stable history without mutating its ancestors."
+      },
+      "requires": "Event boundary is stable and enough state exists to resume.",
+      "ensures": "New branch records parent, boundary, and provenance; invalid boundaries are rejected.",
+      "invariant": "Branch operations never rewrite unrelated history.",
+      "violation": "External side effects are not rolled back and must be reported as irreversible.",
+      "variation": "Transcript fork, session copy, Git-style checkpoint, event UUID branch, and rewind.",
+      "test_obligation": "Test valid fork, invalid boundary, branch isolation, restore, and side-effect caveat.",
+      "negative_control": "Workspace checkpoint without conversation branching is only partial.",
+      "evolution_question": "Did workspace checkpointing converge with conversation trees?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:checkpoint|session[_-]?tree|fork[_-]?(?:session|conversation|thread)|branch[_-]?(?:session|conversation))\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., Table 12, p. 53 (Pi; OpenHands conversation tree, “Session-Tree Version Control”); source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:861",
+        "support": "tests/sdk/conversation/local/test_conversation_tree.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py#L861",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/conversation/local/test_conversation_tree.py#L1",
+        "note": "Fork conversation at a stable event boundary."
+      }
+    },
+    {
+      "id": "P27",
+      "name": "Lineage and threshold compaction",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A3"
+      ],
+      "problem": "Bound history while retaining useful state.",
+      "join_point": "context_projection",
+      "pointcut": {
+        "context": "History approaches a context or count threshold before a model call.",
+        "trigger": "A compaction policy activates.",
+        "structure": "Threshold, selection strategy, summarizer or truncator, and lineage metadata.",
+        "effect": "Model input is reduced while retained and removed evidence remains attributable."
+      },
+      "requires": "Context usage, protected items, and eviction policy are available.",
+      "ensures": "The replacement fits the target and records what replaced which history.",
+      "invariant": "Required system, safety, or current-task evidence is not silently evicted.",
+      "violation": "Summary failure, threshold conflict, or empty projection falls back explicitly.",
+      "variation": "Message count, token budget, oldest-first, protected groups, remote or local.",
+      "test_obligation": "Test threshold edge, protected item, failure, lineage, and post-compaction facts.",
+      "negative_control": "A generic text truncate utility is not compaction without lineage.",
+      "evolution_question": "Did summarization become thresholded and lineage-aware?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:compact(?:ion|ed|or)?|summari[sz](?:e|ation)|truncate[_-]?history|token[_-]?limited[_-]?history)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §9.5, p. 32 (“Threshold Compaction”); §9.5, p. 33 (Hermes, “Lineage Compaction”); merged label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "anomalyco/opencode",
+        "commit": "885df74024b6b540b63bfd487014252227713ea7",
+        "implementation": "packages/core/src/session/compaction.ts:298",
+        "support": "packages/core/test/session-native-compaction.test.ts:213",
+        "url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/src/session/compaction.ts#L298",
+        "support_url": "https://github.com/anomalyco/opencode/blob/885df74024b6b540b63bfd487014252227713ea7/packages/core/test/session-native-compaction.test.ts#L213",
+        "note": "Threshold, background, and native compaction."
+      }
+    },
+    {
+      "id": "P28",
+      "name": "Agent-maintained memory pipelines",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A3"
+      ],
+      "problem": "Update reusable task memory.",
+      "join_point": "reusable_memory_update",
+      "pointcut": {
+        "context": "The harness selects and stores knowledge across tasks or sessions.",
+        "trigger": "An observation, reflection, or memory write is processed.",
+        "structure": "Selection, consolidation, provenance, access control, retrieval, and revision.",
+        "effect": "Stored memory is traceable, retrievable within scope, and updateable."
+      },
+      "requires": "Candidate memory has a source and intended scope.",
+      "ensures": "Retrieval identity and revision history survive consolidation.",
+      "invariant": "Untrusted memory cannot silently redefine instructions or permissions.",
+      "violation": "Stale, poisoned, or conflicting memory is quarantined or rejected.",
+      "variation": "Observational memory, vector store, summary file, scoped project memory.",
+      "test_obligation": "Test source provenance, poisoning, stale update, deletion, and cross-scope read.",
+      "negative_control": "A chat transcript retained in memory is not an update pipeline.",
+      "evolution_question": "Did persistent memory add provenance and poisoning defenses?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:memory[_-]?(?:pipeline|store|update|manager)|remember|memories)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Barbaste et al., §9.6, p. 33 (“Persistent Memory Pipelines”); Table 12 “Agent-Maintained Memory”, p. 53; source label",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "mastra-ai/mastra",
+        "commit": "899383db98e03a91a7ba59596e845efeb800ccf9",
+        "implementation": "packages/memory/src/processors/observational-memory/observational-memory.ts:423",
+        "support": "packages/memory/src/processors/observational-memory/__tests__/observational-memory.test.ts:1",
+        "url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/memory/src/processors/observational-memory/observational-memory.ts#L423",
+        "support_url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/memory/src/processors/observational-memory/__tests__/observational-memory.test.ts#L1",
+        "note": "Observation, reflection, and persistence pipeline."
+      }
+    },
+    {
+      "id": "P29",
+      "name": "Harness mimicry and service hosting",
+      "family": "P",
+      "family_name": "Coding-agent mechanisms",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Preserve an interface while changing its implementation or host.",
+      "join_point": "external_harness_compatibility",
+      "pointcut": {
+        "context": "One harness exposes or consumes an external agent-client or service interface.",
+        "trigger": "A remote client invokes the adapter or a hosted backend is selected.",
+        "structure": "Protocol adapter, identity, capability mapping, and service boundary.",
+        "effect": "The external protocol is preserved while semantics and permissions are translated explicitly."
+      },
+      "requires": "Protocol version and capability mapping are known.",
+      "ensures": "Requests, results, and errors satisfy the compatibility contract.",
+      "invariant": "Interface compatibility does not erase backend-specific authorization or effects.",
+      "violation": "Unsupported capabilities, disconnects, and translation errors are explicit.",
+      "variation": "ACP emulation, server hosting, transport adapter, and backend registry.",
+      "test_obligation": "Test cross-backend parity, unsupported method, reconnect, and permission mapping.",
+      "negative_control": "A similar function signature without protocol compatibility is insufficient.",
+      "evolution_question": "Did harnesses evolve from mimicry toward hosted multi-backend services?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:mimic(?:ry)?|emulat(?:e|ion)|ACP[_-]?client|agent[_-]?client[_-]?protocol)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "openhands-sdk/openhands/sdk/agent/acp_agent.py:1815",
+        "support": "tests/sdk/agent/test_acp_agent.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/openhands-sdk/openhands/sdk/agent/acp_agent.py#L1815",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/agent/test_acp_agent.py#L1",
+        "note": "ACP-compatible agent hosting and external harness adaptation."
+      }
+    },
+    {
+      "id": "W01",
+      "name": "Prompt chaining",
+      "family": "W",
+      "family_name": "Workflows & coordination",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Pass intermediate results through planned stages.",
+      "join_point": "sequential_stage_composition",
+      "pointcut": {
+        "context": "A task is decomposed into ordered agent or prompt stages.",
+        "trigger": "One stage produces an intermediate result consumed by the next.",
+        "structure": "Stage graph, typed handoff payload, validation, and terminal output.",
+        "effect": "Stages execute in order and downstream input is attributable to upstream output."
+      },
+      "requires": "Stage order and handoff schema are defined.",
+      "ensures": "Every stage receives validated input and the final output identifies its stage lineage.",
+      "invariant": "A later stage cannot execute before its prerequisites complete.",
+      "violation": "A stage failure stops, retries, or branches according to declared policy.",
+      "variation": "Sequential agents, prompt templates, pipelines, and transform nodes.",
+      "test_obligation": "Test order, input propagation, stage failure, and branching.",
+      "negative_control": "Independent prompts with no intermediate-result dependency do not count.",
+      "evolution_question": "Did chains add typed handoffs and explicit failure propagation?",
+      "aliases": [
+        "promptchain",
+        "sequentialagent",
+        "sequentialpipeline"
+      ],
+      "regex": "(?i)\\b(?:prompt[_-]?chain(?:ing)?|chain[_-]?(?:prompt|agent)|sequential[_-]?(?:workflow|pipeline))\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Anthropic",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "google/adk-python",
+        "commit": "946ca77224d5b3e1bf7c5a1dd0a39e9b17c3e655",
+        "implementation": "src/google/adk/agents/sequential_agent.py:91",
+        "support": "tests/unittests/agents/test_sequential_agent.py:80",
+        "url": "https://github.com/google/adk-python/blob/946ca77224d5b3e1bf7c5a1dd0a39e9b17c3e655/src/google/adk/agents/sequential_agent.py#L91",
+        "support_url": "https://github.com/google/adk-python/blob/946ca77224d5b3e1bf7c5a1dd0a39e9b17c3e655/tests/unittests/agents/test_sequential_agent.py#L80",
+        "note": "SequentialAgent passes output through ordered sub-agents."
+      }
+    },
+    {
+      "id": "W02",
+      "name": "Routing",
+      "family": "W",
+      "family_name": "Workflows & coordination",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Select a specialized path for an input.",
+      "join_point": "input_dispatch",
+      "pointcut": {
+        "context": "Multiple specialized agent or tool paths are available.",
+        "trigger": "New input must be sent to a destination.",
+        "structure": "Route schema, classifier or rules, dispatch result, and unsupported case.",
+        "effect": "One route is selected and its decision is attributable to input evidence."
+      },
+      "requires": "Routes have declared capabilities and selection criteria.",
+      "ensures": "The selected route can handle the input or returns unsupported.",
+      "invariant": "Dispatch never loses the original request or silently invokes multiple exclusive routes.",
+      "violation": "Classifier error or ambiguous route has deterministic fallback or escalation.",
+      "variation": "LLM router, rules, handoff tool, nested graph, and default route.",
+      "test_obligation": "Test each route, ambiguous input, unsupported input, and selection cost.",
+      "negative_control": "An if statement inside one prompt is not an observable routing contract.",
+      "evolution_question": "Did routing gain explicit alternatives and error handling?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:route(?:r|s|d|ing)?|dispatch[_-]?route|handoff[_-]?route)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Anthropic",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "examples/agent_patterns/routing.py:10",
+        "support": "examples/agent_patterns/README.md:21",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/examples/agent_patterns/routing.py#L10",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/examples/agent_patterns/README.md#L21",
+        "note": "Triage agent routes to specialized agents."
+      }
+    },
+    {
+      "id": "W03",
+      "name": "Parallelization",
+      "family": "W",
+      "family_name": "Workflows & coordination",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Run independent work or alternative judgments concurrently.",
+      "join_point": "fan_out_fan_in",
+      "pointcut": {
+        "context": "Independent tasks or alternative judgments can run concurrently.",
+        "trigger": "A coordinator fans work out and later aggregates it.",
+        "structure": "Partition contract, worker identity, result correlation, and reducer.",
+        "effect": "All selected results are reconciled into a declared aggregate or failure."
+      },
+      "requires": "Work partitions are independent enough for concurrency.",
+      "ensures": "Aggregation includes every expected result or records its absence.",
+      "invariant": "Partial completion is never represented as full agreement.",
+      "violation": "Failures, timeouts, and cancellation follow declared quorum or terminal policy.",
+      "variation": "Sectioning, voting, map-reduce, and parallel tool calls.",
+      "test_obligation": "Test disagreement, correlated failure, timeout, and one missing worker.",
+      "negative_control": "Bare Promise.all without a fan-in contract is only a cue.",
+      "evolution_question": "Did parallelism add explicit reducers and quorum semantics?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:fan[_-]?out|fan[_-]?in|parallel[_-]?(?:run|agent|workflow)|Promise\\.all|asyncio\\.gather)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Anthropic",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "examples/agent_patterns/parallelization.py:7",
+        "support": "examples/agent_patterns/README.md:45",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/examples/agent_patterns/parallelization.py#L7",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/examples/agent_patterns/README.md#L45",
+        "note": "Parallel alternatives with selection."
+      }
+    },
+    {
+      "id": "W04",
+      "name": "Orchestrator-workers",
+      "family": "W",
+      "family_name": "Workflows & coordination",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Generate and delegate subtasks dynamically.",
+      "join_point": "dynamic_task_decomposition",
+      "pointcut": {
+        "context": "A lead agent can generate tasks rather than call a fixed pipeline.",
+        "trigger": "The orchestrator decomposes a goal or dispatches a subtask.",
+        "structure": "Task plan, worker selection, delegation envelope, and synthesis step.",
+        "effect": "Synthesized output accounts for generated task results and delegated authority."
+      },
+      "requires": "Workers advertise capabilities and share a task/result protocol.",
+      "ensures": "Every dispatched task has a result or failure and the final answer links them.",
+      "invariant": "Dynamic dispatch cannot create unbounded uncounted worker expansion.",
+      "violation": "Unsplittable, failed, or duplicate work is reflected in synthesis.",
+      "variation": "Planner-executor, manager-worker, sub-agent registry, and dynamic graph.",
+      "test_obligation": "Test decomposition quality, worker failure, duplicate task, and recursion cap.",
+      "negative_control": "A fixed sequence of sub-agents is W01 rather than dynamic W04.",
+      "evolution_question": "Did fixed chains evolve into runtime task planning?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:orchestrator|orchestrate|task[_-]?decomposition|worker[_-]?agent|dynamic[_-]?dispatch)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Anthropic",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "OpenHands/software-agent-sdk",
+        "commit": "5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d",
+        "implementation": "examples/01_standalone_sdk/42_file_based_subagents.py:24",
+        "support": "tests/sdk/subagent/test_subagent_registry.py:1",
+        "url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/examples/01_standalone_sdk/42_file_based_subagents.py#L24",
+        "support_url": "https://github.com/OpenHands/software-agent-sdk/blob/5c524ad65d8164bf0a967bf5a4dbe3c3eb62253d/tests/sdk/subagent/test_subagent_registry.py#L1",
+        "note": "Primary agent delegates to registered subagents."
+      }
+    },
+    {
+      "id": "W05",
+      "name": "Evaluator-optimizer",
+      "family": "W",
+      "family_name": "Workflows & coordination",
+      "activities": [
+        "A2",
+        "A3"
+      ],
+      "problem": "Revise an artifact using iterative feedback.",
+      "join_point": "generate_evaluate_revise",
+      "pointcut": {
+        "context": "An artifact is improved through explicit evaluation and revision.",
+        "trigger": "A candidate receives a score, failure, or critique.",
+        "structure": "Generator, evaluator, revision input, and stopping rule.",
+        "effect": "A revised candidate is selected with recorded evaluation evidence."
+      },
+      "requires": "Evaluation criteria are observable and revision budget is bounded.",
+      "ensures": "Selected output maps to a passing or best-recorded evaluation.",
+      "invariant": "Final independent evaluation is not merely the optimizer's repeated selector.",
+      "violation": "Evaluator errors, ties, or exhaustion terminate with an explicit status.",
+      "variation": "Rubric evaluator, model judge, best-of-N, and iterative revision.",
+      "test_obligation": "Test improvement, stagnation, evaluator exception, and held-out evaluation.",
+      "negative_control": "One model call that says it improved itself is not enough.",
+      "evolution_question": "Did evaluation separate from generation and gain stopping rules?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:evaluator[_-]?optimizer|optimizer|evaluation[_-]?feedback|revision[_-]?loop)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "examples/agent_patterns/llm_as_a_judge.py:47",
+        "support": "examples/agent_patterns/README.md:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/examples/agent_patterns/llm_as_a_judge.py#L47",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/examples/agent_patterns/README.md#L1",
+        "note": "Generator-evaluator loop revises until pass."
+      }
+    },
+    {
+      "id": "W06",
+      "name": "Manager coordination",
+      "family": "W",
+      "family_name": "Workflows & coordination",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Keep a coordinating agent in control of specialists.",
+      "join_point": "manager_owned_specialist_work",
+      "pointcut": {
+        "context": "A manager remains responsible while specialists perform parts of a task.",
+        "trigger": "The manager delegates, selects, or calls a specialist.",
+        "structure": "Manager-owned plan, specialist interfaces, and integrated response.",
+        "effect": "The manager synthesizes specialist outputs and preserves responsibility."
+      },
+      "requires": "Manager and specialist roles are distinguishable.",
+      "ensures": "Specialist outputs are attributed and integrated under manager authority.",
+      "invariant": "Delegation does not transfer final goal ownership implicitly.",
+      "violation": "Specialist conflict, failure, or omission is resolved or surfaced by the manager.",
+      "variation": "Hierarchical Crew, supervisor, coordinator, and manager-agent patterns.",
+      "test_obligation": "Test specialist disagreement, failure, and manager synthesis.",
+      "negative_control": "A coordinator that merely launches tasks without integration is W04.",
+      "evolution_question": "Did managers gain explicit budgets and specialist authorization?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:manager[_-]?agent|supervisor|coordinator[_-]?agent|manager[_-]?coordination)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "OpenAI",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "crewAIInc/crewAI",
+        "commit": "7abc196a176a5552c35c6e7a16817aa115f10655",
+        "implementation": "lib/crewai/src/crewai/crew.py:1533",
+        "support": "lib/crewai/tests/test_crew.py:1",
+        "url": "https://github.com/crewAIInc/crewAI/blob/7abc196a176a5552c35c6e7a16817aa115f10655/lib/crewai/src/crewai/crew.py#L1533",
+        "support_url": "https://github.com/crewAIInc/crewAI/blob/7abc196a176a5552c35c6e7a16817aa115f10655/lib/crewai/tests/test_crew.py#L1",
+        "note": "Hierarchical process creates a manager agent."
+      }
+    },
+    {
+      "id": "W07",
+      "name": "Decentralized handoffs",
+      "family": "W",
+      "family_name": "Workflows & coordination",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Transfer control to another specialized agent.",
+      "join_point": "peer_control_transfer",
+      "pointcut": {
+        "context": "Multiple peer agents can transfer control.",
+        "trigger": "The active agent invokes a handoff target.",
+        "structure": "Control-transfer envelope, state policy, target criteria, and authority boundary.",
+        "effect": "The target becomes active with declared history and no implicit privilege expansion."
+      },
+      "requires": "Target identity and transfer trigger are explicit.",
+      "ensures": "Handoff records source, target, and transferred state.",
+      "invariant": "Control cannot cycle indefinitely or return to an invalid target.",
+      "violation": "Unknown targets, disabled handoffs, and loops have defined outcomes.",
+      "variation": "History filters, target criteria, enable predicates, and cycle controls.",
+      "test_obligation": "Test transfer, filtered history, disabled target, cycle, and authority.",
+      "negative_control": "A normal function call that returns to the caller is not a handoff.",
+      "evolution_question": "Did handoffs gain nested history and resumable approval state?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:hand[_-]?offs?|transfer[_-]?to|transfer[_-]?agent|decentrali[sz]ed[_-]?handoff)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "OpenAI",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "openai/openai-agents-python",
+        "commit": "86bd29878b30062757fdb4f32fb95eb8eccc7e36",
+        "implementation": "src/agents/handoffs/__init__.py:127",
+        "support": "tests/test_handoff_tool.py:1",
+        "url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/src/agents/handoffs/__init__.py#L127",
+        "support_url": "https://github.com/openai/openai-agents-python/blob/86bd29878b30062757fdb4f32fb95eb8eccc7e36/tests/test_handoff_tool.py#L1",
+        "note": "Control-transfer handoff contract."
+      }
+    },
+    {
+      "id": "C01",
+      "name": "Mediator",
+      "family": "C",
+      "family_name": "Communication",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Coordinate interactions through an intermediary.",
+      "join_point": "participant_interaction_coordination",
+      "pointcut": {
+        "context": "Multiple agents or components exchange messages.",
+        "trigger": "A participant sends a message or requests coordination.",
+        "structure": "Mediator role, participant address, routing policy, and response path.",
+        "effect": "Interactions traverse a controlled intermediary rather than direct mutable coupling."
+      },
+      "requires": "Participants have stable identities and message schemas.",
+      "ensures": "The mediator records routing and returns a response or explicit non-delivery.",
+      "invariant": "Participant bypass does not silently alter mediated ordering.",
+      "violation": "Mediator failure, invalid participant, or unavailable target is explicit.",
+      "variation": "Group-chat manager, coordinator interface, and message mediator.",
+      "test_obligation": "Test routing, invalid recipient, failure, and participant isolation.",
+      "negative_control": "A shared global object is not necessarily a mediator.",
+      "evolution_question": "Did coordination move into a typed manager or service boundary?",
+      "aliases": [
+        "mediator",
+        "messagecoordinator",
+        "coordinationinterface"
+      ],
+      "regex": "(?i)\\b(?:mediator|message[_-]?mediator|coordination[_-]?interface)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Sarkar and Sarkar",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "microsoft/autogen",
+        "commit": "d07c667a3239ea4ab7af62a53b0f4ff205a1f23d",
+        "implementation": "python/packages/autogen-agentchat/src/autogen_agentchat/teams/_group_chat/_base_group_chat_manager.py:25",
+        "support": "python/packages/autogen-agentchat/tests/test_group_chat.py:1",
+        "url": "https://github.com/microsoft/autogen/blob/d07c667a3239ea4ab7af62a53b0f4ff205a1f23d/python/packages/autogen-agentchat/src/autogen_agentchat/teams/_group_chat/_base_group_chat_manager.py#L25",
+        "support_url": "https://github.com/microsoft/autogen/blob/d07c667a3239ea4ab7af62a53b0f4ff205a1f23d/python/packages/autogen-agentchat/tests/test_group_chat.py#L1",
+        "note": "Group chat manager mediates participant messages."
+      }
+    },
+    {
+      "id": "C02",
+      "name": "Observer",
+      "family": "C",
+      "family_name": "Communication",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Notify registered dependents of changes.",
+      "join_point": "subject_change_notification",
+      "pointcut": {
+        "context": "A subject changes state or emits lifecycle information.",
+        "trigger": "The subject publishes a change notification.",
+        "structure": "Subscription registry, event payload, and observer callbacks.",
+        "effect": "Currently registered observers are notified under declared ordering semantics."
+      },
+      "requires": "Observer identity and subscription lifetime are defined.",
+      "ensures": "Notification follows the event and unsubscribed observers no longer receive it.",
+      "invariant": "Observer failure does not corrupt subject state.",
+      "violation": "Callback errors and cascades are isolated or propagated by explicit policy.",
+      "variation": "Event emitter, listener, hooks, and stream observers.",
+      "test_obligation": "Test subscribe, unsubscribe, ordering, callback error, and reentrancy.",
+      "negative_control": "Polling the subject rather than notification is not the observer pointcut.",
+      "evolution_question": "Did observer callbacks gain event schemas and lifecycle controls?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:Observer|observer|add[_-]?listener|register[_-]?(?:listener|observer))\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Sarkar and Sarkar",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "mastra-ai/mastra",
+        "commit": "899383db98e03a91a7ba59596e845efeb800ccf9",
+        "implementation": "packages/core/src/events/event-emitter/index.ts:21",
+        "support": "packages/core/src/events/unix-socket-pubsub-solo.test.ts:54",
+        "url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/core/src/events/event-emitter/index.ts#L21",
+        "support_url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/core/src/events/unix-socket-pubsub-solo.test.ts#L54",
+        "note": "Registered subscribers receive event notifications."
+      }
+    },
+    {
+      "id": "C03",
+      "name": "Publish-subscribe",
+      "family": "C",
+      "family_name": "Communication",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Decouple producers from consumers.",
+      "join_point": "topic_based_event_delivery",
+      "pointcut": {
+        "context": "Producers and consumers are decoupled through topics.",
+        "trigger": "A message is published to a topic.",
+        "structure": "Topic schema, broker or bus, subscribers, and delivery policy.",
+        "effect": "Matching subscribers receive the message under declared ordering and durability rules."
+      },
+      "requires": "Topic identity and event compatibility are defined.",
+      "ensures": "Delivery or drop is observable and subscriber selection is attributable.",
+      "invariant": "A subscriber cannot read a topic outside its authorization.",
+      "violation": "Duplicate, late, or lost delivery follows an explicit semantic contract.",
+      "variation": "In-process bus, OS socket pubsub, cloud queue, and durable stream.",
+      "test_obligation": "Test multi-subscriber delivery, no subscriber, disconnect, duplicate, and auth.",
+      "negative_control": "Directly invoking known listeners is C02 rather than C03.",
+      "evolution_question": "Did pubsub gain durability, replay, and authorization?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:pub(?:lish)?[_-]?sub(?:scribe)?|topic[_-]?bus|event[_-]?bus|subscriber)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "mastra-ai/mastra",
+        "commit": "899383db98e03a91a7ba59596e845efeb800ccf9",
+        "implementation": "packages/core/src/events/pubsub.ts:19",
+        "support": "packages/core/src/events/subscribe-start-position.test.ts:25",
+        "url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/core/src/events/pubsub.ts#L19",
+        "support_url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/core/src/events/subscribe-start-position.test.ts#L25",
+        "note": "Topic-based publish/subscribe abstraction."
+      }
+    },
+    {
+      "id": "C04",
+      "name": "Broker",
+      "family": "C",
+      "family_name": "Communication",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Mediate discovery and invocation across boundaries.",
+      "join_point": "service_discovery_invocation",
+      "pointcut": {
+        "context": "A caller invokes a service or provider without direct construction.",
+        "trigger": "A service description is registered or a request is addressed.",
+        "structure": "Registry, service description, transport, request/reply, and error mapping.",
+        "effect": "Broker resolves a compatible endpoint and returns a correlated response."
+      },
+      "requires": "Provider identity and versioned service description are available.",
+      "ensures": "Client and provider agree on schema or return incompatibility.",
+      "invariant": "Broker discovery does not bypass authentication or trust boundaries.",
+      "violation": "Provider absence, timeout, partial reply, and schema mismatch are explicit.",
+      "variation": "Tool registry, provider registry, cross-process broker, and service mesh.",
+      "test_obligation": "Test discovery, missing provider, version mismatch, timeout, and reconnect.",
+      "negative_control": "A local factory returning implementations is only a registry cue.",
+      "evolution_question": "Did local registries evolve into cross-process service brokers?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:broker|provider[_-]?registry|tool[_-]?registry|service[_-]?registry)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Sarkar and Sarkar",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "mastra-ai/mastra",
+        "commit": "899383db98e03a91a7ba59596e845efeb800ccf9",
+        "implementation": "packages/core/src/events/unix-socket-pubsub.ts:325",
+        "support": "packages/core/src/events/unix-socket-pubsub-codec.test.ts:62",
+        "url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/core/src/events/unix-socket-pubsub.ts#L325",
+        "support_url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/core/src/events/unix-socket-pubsub-codec.test.ts#L62",
+        "note": "Cross-process broker discovery and forwarding."
+      }
+    },
+    {
+      "id": "R01",
+      "name": "Reason-act-observe",
+      "family": "R",
+      "family_name": "Reasoning & feedback",
+      "activities": [
+        "A1"
+      ],
+      "problem": "Interleave reasoning and external actions.",
+      "join_point": "interleaved_reasoning_and_action",
+      "pointcut": {
+        "context": "An agent can reason and use an external action interface.",
+        "trigger": "The model emits reasoning followed by an action request.",
+        "structure": "Parsed action, execution result, and observation fed into the next cycle.",
+        "effect": "External evidence enters the reasoning trajectory before the next action."
+      },
+      "requires": "Action and observation schemas are stable enough to parse.",
+      "ensures": "Every executed action has an attributable observation or execution error.",
+      "invariant": "Model reasoning is not treated as environment evidence.",
+      "violation": "Invalid action, unavailable tool, or parse error is exposed to the loop.",
+      "variation": "Prompt protocol, typed tool call, XML or text parser, and observation compression.",
+      "test_obligation": "Test action-observation linkage, malformed action, tool error, and loop termination.",
+      "negative_control": "Chain-of-thought text without external action is not ReAct.",
+      "evolution_question": "Did textual thought-action protocols become typed tool events?",
+      "aliases": [],
+      "regex": "(?i)\\bReAct\\b|\\breason[_-]?act[_-]?observe\\b|\\bThought:\\s|\\bAction:\\s",
+      "regex_version": "0.1.0",
+      "source_locator": "Yao et al.",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "huggingface/smolagents",
+        "commit": "96f33faaf028479119ec8d34507b47694cf14e34",
+        "implementation": "src/smolagents/agents.py:270",
+        "support": "tests/test_agents.py:217",
+        "url": "https://github.com/huggingface/smolagents/blob/96f33faaf028479119ec8d34507b47694cf14e34/src/smolagents/agents.py#L270",
+        "support_url": "https://github.com/huggingface/smolagents/blob/96f33faaf028479119ec8d34507b47694cf14e34/tests/test_agents.py#L217",
+        "note": "ReAct agent loop with thought/action/observation."
+      }
+    },
+    {
+      "id": "R02",
+      "name": "Verbal reflection memory",
+      "family": "R",
+      "family_name": "Reasoning & feedback",
+      "activities": [
+        "A2",
+        "A3"
+      ],
+      "problem": "Reuse feedback across attempts.",
+      "join_point": "feedback_reuse_across_attempts",
+      "pointcut": {
+        "context": "An agent receives feedback that can inform later attempts.",
+        "trigger": "A failure or critique is verbalized and stored.",
+        "structure": "Reflection producer, retrieval key, memory scope, and update policy.",
+        "effect": "A later attempt retrieves attributable feedback and uses it in context."
+      },
+      "requires": "Attempt and feedback identities are linked.",
+      "ensures": "Retrieved reflection retains source and remains updateable or revocable.",
+      "invariant": "Reflected explanations are not promoted to verified facts.",
+      "violation": "Contradictory or poisoned reflections are filtered or explicit.",
+      "variation": "Reflexion, episodic memory, observational memory, and project notes.",
+      "test_obligation": "Test reuse, stale memory, contradiction, poisoning, and deletion.",
+      "negative_control": "A generic conversation history is not a reflection-memory contract.",
+      "evolution_question": "Did reflection memory gain provenance and maintenance policies?",
+      "aliases": [
+        "reflectionmemory",
+        "episodicmemory",
+        "lessonslearned",
+        "reflexion"
+      ],
+      "regex": "(?i)\\b(?:Reflexion|verbal[_-]?reflection|reflection[_-]?memory|episodic[_-]?memory)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "mastra-ai/mastra",
+        "commit": "899383db98e03a91a7ba59596e845efeb800ccf9",
+        "implementation": "packages/memory/src/processors/observational-memory/reflector-agent.ts:50",
+        "support": "packages/memory/src/processors/observational-memory/__tests__/observational-memory.test.ts:10564",
+        "url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/memory/src/processors/observational-memory/reflector-agent.ts#L50",
+        "support_url": "https://github.com/mastra-ai/mastra/blob/899383db98e03a91a7ba59596e845efeb800ccf9/packages/memory/src/processors/observational-memory/__tests__/observational-memory.test.ts#L10564",
+        "note": "Reflector writes reusable verbal memories."
+      }
+    },
+    {
+      "id": "E01",
+      "name": "Inheritance and polymorphic routing",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Specialize related harnesses.",
+      "join_point": "harness_specialization_via_subtype",
+      "pointcut": {
+        "context": "Harness variants share a base abstraction.",
+        "trigger": "A base-typed slot dispatches to a concrete implementation.",
+        "structure": "Base interface, overridden behavior, subtype registry, and invariant clauses.",
+        "effect": "Any accepted subtype honors the base contract at the dispatch boundary."
+      },
+      "requires": "The base interface declares substitutable behavior.",
+      "ensures": "Runtime dispatch reaches the intended specialized implementation.",
+      "invariant": "Subtype overrides do not narrow required capabilities or violate base obligations.",
+      "violation": "Unsupported subtype behavior raises or is excluded from the slot.",
+      "variation": "Class inheritance, interfaces, protocols, and plugin subclasses.",
+      "test_obligation": "Test substitutability, dispatch, override errors, and invalid subtype.",
+      "negative_control": "A class hierarchy with no harness dispatch does not count.",
+      "evolution_question": "Did inheritance replace ad hoc branching or move toward composition?",
+      "aliases": [],
+      "regex": "(?i)\\bclass\\s+\\w*Agent\\w*|\\bextends\\s+\\w*Agent\\w*|\\binherits?\\s+from\\s+\\w*Agent\\w*",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "crewAIInc/crewAI",
+        "commit": "7abc196a176a5552c35c6e7a16817aa115f10655",
+        "implementation": "lib/crewai/src/crewai/agent/core.py:223",
+        "support": "lib/crewai/tests/test_crew.py:4770",
+        "url": "https://github.com/crewAIInc/crewAI/blob/7abc196a176a5552c35c6e7a16817aa115f10655/lib/crewai/src/crewai/agent/core.py#L223",
+        "support_url": "https://github.com/crewAIInc/crewAI/blob/7abc196a176a5552c35c6e7a16817aa115f10655/lib/crewai/tests/test_crew.py#L4770",
+        "note": "Concrete Agent specializes BaseAgent."
+      }
+    },
+    {
+      "id": "E02",
+      "name": "Propose-Probe-Compose",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A3"
+      ],
+      "problem": "Improve a harness using contrastive probes.",
+      "join_point": "harness_edit_cycle",
+      "pointcut": {
+        "context": "A base harness is available for improvement.",
+        "trigger": "A proposal changes a bounded harness component and probes are executed.",
+        "structure": "Proposal scope, task probes, evaluator, and composition operation.",
+        "effect": "Only evidence-supported edits are composed into the next harness."
+      },
+      "requires": "Harness components are addressable and probes use permitted data.",
+      "ensures": "Candidate edits carry probe results and composition provenance.",
+      "invariant": "Evaluation data cannot be silently repurposed as final test data.",
+      "violation": "Failed probes, invalid edits, and conflicting changes remain uncomposed.",
+      "variation": "Contrastive probes, recursive improvement, and component-level editing.",
+      "test_obligation": "Test accepted edit, rejected edit, leakage, and composition rollback.",
+      "negative_control": "A one-shot prompt rewrite without probes is not E02.",
+      "evolution_question": "Did harness edits become evidence-gated and attributable?",
+      "aliases": [
+        "proposeprobecompose",
+        "candidateprobe",
+        "harnesseditcycle"
+      ],
+      "regex": "(?i)\\bpropose[_-]?probe[_-]?compose\\b|\\bproposal\\b.*\\bprobe\\b|\\bprobe\\b.*\\bcompose\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Xu et al.",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "google-research/harness2",
+        "commit": "6868817518876de8fd170c6a8354daca273b6191",
+        "implementation": "harness2/core/recursion.py:360",
+        "support": "tests/test_workflow.py:139",
+        "url": "https://github.com/google-research/harness2/blob/6868817518876de8fd170c6a8354daca273b6191/harness2/core/recursion.py#L360",
+        "support_url": "https://github.com/google-research/harness2/blob/6868817518876de8fd170c6a8354daca273b6191/tests/test_workflow.py#L139",
+        "note": "Proposal, probe/evaluation, and composition rounds."
+      }
+    },
+    {
+      "id": "E03",
+      "name": "Regularized harness improvement",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A2",
+        "A3"
+      ],
+      "problem": "Limit overfitting during repeated edits.",
+      "join_point": "repeated_acceptance_decision",
+      "pointcut": {
+        "context": "Multiple harness edits are proposed over repeated rounds.",
+        "trigger": "An evaluator accepts or rejects an edit.",
+        "structure": "Validation split, regularization signal, edit budget, and final holdout.",
+        "effect": "Selection controls complexity and overfitting before final evaluation."
+      },
+      "requires": "Acceptance and final evaluation data have distinct roles.",
+      "ensures": "Accepted edits include the screening evidence that justified them.",
+      "invariant": "Final holdout is not used for iterative selection.",
+      "violation": "Leakage or unstable gain stops acceptance or downgrades the claim.",
+      "variation": "Holdout, critic, complexity penalty, edit budget, and pruning.",
+      "test_obligation": "Test leakage detection, repeated selection, complexity penalty, and holdout.",
+      "negative_control": "Best-of-many tuning on the test metric is not regularized improvement.",
+      "evolution_question": "Did selection add untouched evaluation and complexity controls?",
+      "aliases": [],
+      "regex": "(?i)\\b(?:regulariz(?:e|ed|ation)|overfit|hold[_-]?out|validation[_-]?suite)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "google-research/rrsi",
+        "commit": "be50316e1db05914068a973f322770ef08ed7ba1",
+        "implementation": "rrsi/critic.py:28",
+        "support": "tests/test_core.py:128",
+        "url": "https://github.com/google-research/rrsi/blob/be50316e1db05914068a973f322770ef08ed7ba1/rrsi/critic.py#L28",
+        "support_url": "https://github.com/google-research/rrsi/blob/be50316e1db05914068a973f322770ef08ed7ba1/tests/test_core.py#L128",
+        "note": "Critic screens leakage and overfit edits; history prunes low-yield components."
+      }
+    },
+    {
+      "id": "E04",
+      "name": "Multi-objective evolution and composition",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A2",
+        "A3"
+      ],
+      "problem": "Search among competing objectives.",
+      "join_point": "candidate_harness_selection",
+      "pointcut": {
+        "context": "Candidate harnesses differ across at least two measured objectives.",
+        "trigger": "Evaluation yields an objective vector.",
+        "structure": "Declared objectives, constraints, candidate set, and Pareto or scalar selection.",
+        "effect": "Selected candidates preserve documented trade-offs rather than one hidden score."
+      },
+      "requires": "Objective direction, weight, and constraints are explicit.",
+      "ensures": "Selection records candidate vectors and dominance or scoring rationale.",
+      "invariant": "A hard constraint failure cannot be hidden by strong average quality.",
+      "violation": "Missing objective or incomparable candidate is marked ineligible or ambiguous.",
+      "variation": "Quality-cost trade-off, Pareto front, weighted fitness, and constraints.",
+      "test_obligation": "Test dominance, ties, constraint failure, missing objective, and composition.",
+      "negative_control": "A single accuracy score is not multi-objective selection.",
+      "evolution_question": "Did harness optimization expose more objectives and constraints?",
+      "aliases": [
+        "multiobjective",
+        "paretofront",
+        "objectiveweights",
+        "candidateselection"
+      ],
+      "regex": "(?i)\\b(?:multi[_-]?objective|pareto|fitness[_-]?function|objective[_-]?weights?)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "mingju-c/HarnessForge",
+        "commit": "8bef9488c35a21ef510a6f069476305025ba5519",
+        "implementation": "HarnessForge_4B/tools/half_select_harnesses.py:108",
+        "support": "HarnessForge_4B/registries/README.md:48",
+        "url": "https://github.com/mingju-c/HarnessForge/blob/8bef9488c35a21ef510a6f069476305025ba5519/HarnessForge_4B/tools/half_select_harnesses.py#L108",
+        "support_url": "https://github.com/mingju-c/HarnessForge/blob/8bef9488c35a21ef510a6f069476305025ba5519/HarnessForge_4B/registries/README.md#L48",
+        "note": "Pareto-front harness selection over quality and cost objectives."
+      }
+    },
+    {
+      "id": "E05",
+      "name": "Composable harness foundry",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Construct and evolve reusable harness components.",
+      "join_point": "harness_component_build_and_evaluate",
+      "pointcut": {
+        "context": "Harness behavior is assembled from independently typed components.",
+        "trigger": "Components are selected, composed, or replaced.",
+        "structure": "Component interface, composition builder, evaluator, and artifact registry.",
+        "effect": "The built harness is executable and its component provenance is recoverable."
+      },
+      "requires": "Components have compatible contracts and composition operators.",
+      "ensures": "Invalid composition is rejected before execution.",
+      "invariant": "Reusing a component does not silently reuse privileged state.",
+      "violation": "Build conflicts, incompatible versions, and evaluation failure are explicit.",
+      "variation": "Typed processors, foundry DSL, component search, and immutable builders.",
+      "test_obligation": "Test composition, incompatible component, rebuild, and provenance.",
+      "negative_control": "Separate helper functions without component contracts are insufficient.",
+      "evolution_question": "Did composition move from code edits to a searchable component space?",
+      "aliases": [
+        "harnessfoundry",
+        "componentsearch",
+        "harnessbuild",
+        "composeharness"
+      ],
+      "regex": "(?i)\\b(?:harness[_-]?foundry|HarnessX|component[_-]?search|composable[_-]?harness)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "Darwin-Agent/HarnessX",
+        "commit": "ccb411691343d06b4a5c44c4e11104d694318e8f",
+        "implementation": "harnessx/core/builder.py:73",
+        "support": "tests/unit/test_builder.py:1",
+        "url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/harnessx/core/builder.py#L73",
+        "support_url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/tests/unit/test_builder.py#L1",
+        "note": "Immutable composition of typed harness processors."
+      }
+    },
+    {
+      "id": "E06",
+      "name": "Joint harness-policy evolution",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A3"
+      ],
+      "problem": "Adapt runtime structure and policy together.",
+      "join_point": "coadaptive_training_loop",
+      "pointcut": {
+        "context": "Runtime harness and model policy can both change.",
+        "trigger": "An evolution round evaluates task behavior and proposes changes to either or both.",
+        "structure": "Task interface, harness representation, policy representation, and joint evaluator.",
+        "effect": "The selected pair is evaluated as a pair with attribution for harness and policy changes."
+      },
+      "requires": "Policy and harness variants are versioned jointly.",
+      "ensures": "Results identify the evaluated pair and separate objective contributions where possible.",
+      "invariant": "A policy gain is not reported as a harness gain without an ablation.",
+      "violation": "Failed candidates or incompatible pairs are excluded with reason.",
+      "variation": "Curated pairs, coevolution, alternating optimization, and ablation controls.",
+      "test_obligation": "Test pair compatibility, harness-only, policy-only, joint, and transfer.",
+      "negative_control": "Retraining only the model with a fixed harness is not joint evolution.",
+      "evolution_question": "Did research move from separate optimization to paired variants?",
+      "aliases": [
+        "coevolution",
+        "jointoptim",
+        "harnesspolicy",
+        "policyevolution"
+      ],
+      "regex": "(?i)\\b(?:joint[_-]?evolution|evolve\\w*\\s+(?:harness|policy)|policy[_-]?evolution)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Chen et al.",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "mingju-c/HarnessForge",
+        "commit": "8bef9488c35a21ef510a6f069476305025ba5519",
+        "implementation": "HarnessForge_4B/evolved_pairs/pairs.yaml:1",
+        "support": "README.md:15",
+        "url": "https://github.com/mingju-c/HarnessForge/blob/8bef9488c35a21ef510a6f069476305025ba5519/HarnessForge_4B/evolved_pairs/pairs.yaml#L1",
+        "support_url": "https://github.com/mingju-c/HarnessForge/blob/8bef9488c35a21ef510a6f069476305025ba5519/README.md#L15",
+        "note": "Curated harness-policy pairs."
+      }
+    },
+    {
+      "id": "E07",
+      "name": "Evaluator-guided program search",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A2",
+        "A3"
+      ],
+      "problem": "Evolve executable candidates.",
+      "join_point": "executable_candidate_generation",
+      "pointcut": {
+        "context": "Harness or harness-adjacent behavior is represented as executable programs.",
+        "trigger": "Candidate programs are generated, mutated, or selected.",
+        "structure": "Generator, executor, fitness evaluator, archive, and next-generation policy.",
+        "effect": "A next generation is selected from measured executable candidates."
+      },
+      "requires": "Candidate runtime and evaluation suite are isolated and available.",
+      "ensures": "Every selected candidate has execution and fitness provenance.",
+      "invariant": "Evaluation budget and security boundaries hold across all candidates.",
+      "violation": "Crash, timeout, unsafe code, or invalid fitness removes or quarantines candidate.",
+      "variation": "AlphaEvolve-like search, evolutionary archive, program mutation, and fitness gates.",
+      "test_obligation": "Test execution, unsafe candidate, timeout, fitness error, and generation update.",
+      "negative_control": "Prompt-level variation with no executable search is not E07.",
+      "evolution_question": "Did program search become part of harness engineering?",
+      "aliases": [
+        "programsearch",
+        "fitnessevaluation",
+        "evolveprogram",
+        "programevolution"
+      ],
+      "regex": "(?i)\\b(?:program[_-]?search|evolve\\w*\\s+programs?|AlphaEvolve|fitness[_-]?evaluation)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "Darwin-Agent/HarnessX",
+        "commit": "ccb411691343d06b4a5c44c4e11104d694318e8f",
+        "implementation": "recipe/gaia_evolver/run_meta.py:437",
+        "support": "tests/unit/test_gaia_gating.py:1",
+        "url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/recipe/gaia_evolver/run_meta.py#L437",
+        "support_url": "https://github.com/Darwin-Agent/HarnessX/blob/ccb411691343d06b4a5c44c4e11104d694318e8f/tests/unit/test_gaia_gating.py#L1",
+        "note": "Evaluate candidate harnesses and evolve the next round."
+      }
+    },
+    {
+      "id": "E08",
+      "name": "On-demand adaptation target selection",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A3"
+      ],
+      "problem": "Choose harness versus weight adaptation.",
+      "join_point": "embodied_adaptation_decision",
+      "pointcut": {
+        "context": "An embodied agent encounters a task or distribution shift.",
+        "trigger": "An adaptation controller evaluates task performance and cost.",
+        "structure": "Adaptation target policy, harness and weight candidates, and evaluation feedback.",
+        "effect": "The controller selects a declared adaptation target and records why."
+      },
+      "requires": "Task state, candidate adaptation targets, and cost or risk are observable.",
+      "ensures": "The selected target is compatible with the current execution environment.",
+      "invariant": "Adaptation does not silently combine targets outside the declared policy.",
+      "violation": "Unsupported target or uncertain evidence falls back to a safe target or no adaptation.",
+      "variation": "Harness adaptation, weight adaptation, recursive adaptation, and embodied task domain.",
+      "test_obligation": "Test target choice, unsupported change, reversibility, and transfer.",
+      "negative_control": "A paper citation or generic fine-tuning script is not an E08 instance.",
+      "evolution_question": "Is there an official implementation with target-selection provenance?",
+      "aliases": [
+        "adapttarget",
+        "targetselection",
+        "domainadapt",
+        "adaptationtarget"
+      ],
+      "regex": "(?i)\\b(?:adaptation[_-]?target|weight[_-]?adaptation|on[_-]?demand[_-]?adaptation)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "Wang et al.",
+      "evidence_status": "specification_only",
+      "canonical": null
+    },
+    {
+      "id": "E09",
+      "name": "Dual-loop assistance",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A1",
+        "A3"
+      ],
+      "problem": "Separate planning and execution feedback.",
+      "join_point": "planner_executor_feedback_link",
+      "pointcut": {
+        "context": "A planner or assistance loop and an executor loop operate concurrently or iteratively.",
+        "trigger": "Executor state or environment feedback updates planning.",
+        "structure": "Planner, executor, feedback channel, synchronization, and authorization boundary.",
+        "effect": "The next plan or assistance action changes in response to attributable executor feedback."
+      },
+      "requires": "Planner and executor states have compatible identities and timing.",
+      "ensures": "Feedback reaches planning before the affected action when required.",
+      "invariant": "The outer loop cannot bypass executor authorization for physical or external actions.",
+      "violation": "Stale, conflicting, or unavailable feedback has a safe coordination policy.",
+      "variation": "Reactor-assisted executor, dual loop, planner-executor, and assistance policy.",
+      "test_obligation": "Test feedback timing, stale feedback, authorization, and loop termination.",
+      "negative_control": "Two unrelated loops without a feedback link do not meet the pointcut.",
+      "evolution_question": "Did assistance move from periodic prompting to a synchronized outer loop?",
+      "aliases": [
+        "dualloop",
+        "plannerexecutor",
+        "assistanceloop",
+        "planningfeedback"
+      ],
+      "regex": "(?i)\\b(?:dual[_-]?loop|planner[_-]?executor|assistance[_-]?loop|planning[_-]?feedback)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "JIA-Lab-research/CarryOn",
+        "commit": "02c97b80987c4a1a125ae98d3eae8b40e60d0289",
+        "implementation": "src/carryon/main.py:176",
+        "support": "README.md:43",
+        "url": "https://github.com/JIA-Lab-research/CarryOn/blob/02c97b80987c4a1a125ae98d3eae8b40e60d0289/src/carryon/main.py#L176",
+        "support_url": "https://github.com/JIA-Lab-research/CarryOn/blob/02c97b80987c4a1a125ae98d3eae8b40e60d0289/README.md#L43",
+        "note": "Reactor closes event-feedback-planning-dispatch loop alongside execution."
+      }
+    },
+    {
+      "id": "E10",
+      "name": "Observability-driven harness evolution",
+      "family": "E",
+      "family_name": "Harness evolution",
+      "activities": [
+        "A2",
+        "A3"
+      ],
+      "problem": "Use traces to guide candidate changes.",
+      "join_point": "trace_to_harness_change",
+      "pointcut": {
+        "context": "Harness traces and evaluation results are available for improvement.",
+        "trigger": "Analysis identifies a failure or opportunity and proposes a harness change.",
+        "structure": "Trace schema, analyzer, authorized edit scope, evaluation gate, and regression suite.",
+        "effect": "The harness change is trace-linked and accepted only after evaluation."
+      },
+      "requires": "Trace links compare runs and identify the affected harness component.",
+      "ensures": "Accepted changes retain observation, hypothesis, diff, and evaluation provenance.",
+      "invariant": "A changed harness still passes regression and security checks.",
+      "violation": "Non-reproducible traces or regressions reject or quarantine the change.",
+      "variation": "Trace-guided edits, observability loops, automated diagnosis, and transfer tests.",
+      "test_obligation": "Test diagnosis, accepted change, rejected regression, and cross-task transfer.",
+      "negative_control": "Logging without a trace-to-change decision is not E10.",
+      "evolution_question": "Did trace analysis become an explicit gate for harness edits?",
+      "aliases": [
+        "observabilitydriven",
+        "tracedriven",
+        "traceguided",
+        "harnessevolution"
+      ],
+      "regex": "(?i)\\b(?:observability[_-]?driven|trace[_-]?(?:guided|driven)|trajectory[_-]?optimi[sz]ation)\\b",
+      "regex_version": "0.1.0",
+      "source_locator": "",
+      "evidence_status": "source_located",
+      "canonical": {
+        "repo": "china-qijizhifeng/agentic-harness-engineering",
+        "commit": "182ea06e578df7b1d503eca537503c1e4c5a8a58",
+        "implementation": "evolve.py:5",
+        "support": "README.md:169",
+        "url": "https://github.com/china-qijizhifeng/agentic-harness-engineering/blob/182ea06e578df7b1d503eca537503c1e4c5a8a58/evolve.py#L5",
+        "support_url": "https://github.com/china-qijizhifeng/agentic-harness-engineering/blob/182ea06e578df7b1d503eca537503c1e4c5a8a58/README.md#L169",
+        "note": "Evaluate, analyze traces, improve harness, repeat."
+      }
+    }
+  ]
+}
