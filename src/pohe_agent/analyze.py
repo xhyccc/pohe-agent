@@ -554,35 +554,6 @@ def _dedupe_hits(hits: list[dict]) -> list[dict]:
     return unique
 
 
-def _source_kind(files: list[SourceFile], rel: str) -> str:
-    for source in files:
-        if source.rel == rel:
-            return source.kind
-    return "other"
-
-
-def lines_for_scope(scope: Scope, files: list[SourceFile]) -> list[str]:
-    source = next((item for item in files if item.rel == scope.rel), None)
-    if source is None:
-        return []
-    text = read_text(source.path)
-    return text.splitlines() if text else []
-
-def _source_kind(files: list[SourceFile], rel: str) -> str:
-    for source in files:
-        if source.rel == rel:
-            return source.kind
-    return "other"
-
-
-def lines_for_scope(scope: Scope, files: list[SourceFile]) -> list[str]:
-    source = next((item for item in files if item.rel == scope.rel), None)
-    if source is None:
-        return []
-    text = read_text(source.path)
-    return text.splitlines() if text else []
-
-
 def why(candidate: dict, record: dict) -> str:
     structure = candidate["dimensions"]["structure"]
     missing = structure["missing"]
