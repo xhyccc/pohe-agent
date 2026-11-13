@@ -25,6 +25,7 @@ EXCLUDED_NAMES = {
 }
 EXCLUDED_SUFFIXES = (".min.js", ".min.css", ".map", ".lock", ".snap")
 MAX_BYTES = 2_000_000
+KIND_PRIORITY = {"code": 0, "test": 1, "support": 2}
 
 
 @dataclass(frozen=True)
@@ -64,12 +65,19 @@ def is_excluded(rel: str, name: str, suffix: str) -> bool:
     return bool(parts & EXCLUDED_DIRS)
 
 
-def walk_repository(root: Path, max_files: int = 6000) -> tuple[list[SourceFile], list[str]]:
-    """Return candidate files and paths skipped for size or decoding reasons."""
+def walk_repository(root: Path, max_files: int = 0) -> tuple[list[SourceFile], list[str]]:
+    """Return candidate files and paths skipped for size or decoding reasons.
+
+    A ``max_files`` of 0 keeps every candidate. When a budget is given, it is
+    applied after classification, keeping code first, then tests, then support
+    material. Applying it during traversal lets a large docs, cassette, or data
+    subtree exhaust the budget before the scanner ever reaches the source files,
+    which would silently bias the report.
+    """
     root = root.resolve()
     if not root.is_dir():
         raise SystemExit(f"not a directory: {root}")
-    files: list[SourceFile] = []
+    candidates: list[SourceFile] = []
     skipped: list[str] = []
     for current, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith("."))
@@ -89,10 +97,15 @@ def walk_repository(root: Path, max_files: int = 6000) -> tuple[list[SourceFile]
             kind = classify(rel, suffix)
             if kind == "other":
                 continue
-            files.append(SourceFile(path=path, rel=rel, kind=kind, size=size))
-            if len(files) >= max_files:
-                return files, skipped + [f"file limit reached at {max_files}"]
-    return files, skipped
+            candidates.append(SourceFile(path=path, rel=rel, kind=kind, size=size))
+    candidates.sort(key=lambda item: (KIND_PRIORITY[item.kind], item.rel))
+    if max_files and len(candidates) > max_files:
+        skipped.append(
+            f"file limit reached at {max_files}: kept {max_files} of "
+            f"{len(candidates)} candidates (code first, then tests, then support)"
+        )
+        candidates = candidates[:max_files]
+    return candidates, skipped
 
 
 def read_text(path: Path) -> str | None:

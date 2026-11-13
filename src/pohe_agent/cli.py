@@ -129,7 +129,10 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--json", help="write JSON findings")
     scan_parser.add_argument("--markdown", help="write a Markdown report")
     scan_parser.add_argument("--patterns", help="restrict output to ids or families")
-    scan_parser.add_argument("--max-files", type=int, default=6000)
+    scan_parser.add_argument(
+        "--max-files", type=int, default=0,
+        help="cap candidate files; 0 keeps every candidate (default)",
+    )
     scan_parser.set_defaults(func=cmd_scan)
 
     match_parser = subparsers.add_parser("match", help="extract structural candidates")
@@ -137,7 +140,10 @@ def build_parser() -> argparse.ArgumentParser:
     match_parser.add_argument("--pattern", help="comma-separated ids or families; default all")
     match_parser.add_argument("--json", help="write JSON candidates")
     match_parser.add_argument("--markdown", help="write a Markdown packet")
-    match_parser.add_argument("--max-files", type=int, default=6000)
+    match_parser.add_argument(
+        "--max-files", type=int, default=0,
+        help="cap candidate files; 0 keeps every candidate (default)",
+    )
     match_parser.set_defaults(func=cmd_match)
 
     plan_parser = subparsers.add_parser("plan", help="build a pattern-guided evolution plan")

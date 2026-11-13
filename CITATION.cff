@@ -6,7 +6,7 @@ authors:
   - family-names: Xiong
     given-names: Haoyi
     alias: "Haoyi Bertrand Xiong"
-version: 0.1.0
+version: 0.2.0
 date-released: 2026-11-13
 license: MIT
 repository-code: "https://github.com/xhyccc/pohe-agent"

@@ -78,7 +78,7 @@ def match_repository(
     root: Path,
     catalog: dict | None = None,
     pattern_spec: str | None = None,
-    max_files: int = 6000,
+    max_files: int = 0,
 ) -> dict:
     catalog = catalog or load_catalog()
     selected = select(catalog, pattern_spec)

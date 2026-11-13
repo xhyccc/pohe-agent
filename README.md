@@ -62,7 +62,10 @@ repository
 
 Runs the frozen cue expressions over code, test, and support files. It excludes
 dependency caches, build output, vendored trees, minified files, and files over
-2 MB. The output is a JSON document plus an optional Markdown report.
+2 MB. Every candidate file is scanned by default. Pass `--max-files N` only when
+you need a hard runtime bound; the budget keeps code first, then tests, then
+support material, so a large docs tree cannot crowd out the source. The output
+is a JSON document plus an optional Markdown report.
 
 Each observed record carries:
 
@@ -153,6 +156,19 @@ unobserved.
 PYTHONPATH=src python3 -m pohe_agent scan examples/mini_harness
 PYTHONPATH=src python3 -m pohe_agent match examples/mini_harness --pattern P01,P09
 ```
+
+## Validated on real repositories
+
+The scanner was run over the study's 41 frozen checkouts (172,832 candidate
+files). Against the published 52 × 41 cue matrix it agrees on **98.55%** of
+2,132 cells: recall 99.60%, precision 97.95%. The five misses are all files the
+scanner excludes by design (four over 2 MB and one minified third-party asset).
+Most of the 26 extra cells are cells where re-running the study's own detector
+on the same checkout already retrieves cues the frozen matrix omits.
+
+This is cue-level agreement, not a claim that every matched record is an
+implemented pattern. The method, per-cell differences, and the reproduction
+command are in [`docs/reproduction.md`](docs/reproduction.md).
 
 ## Design boundaries
 

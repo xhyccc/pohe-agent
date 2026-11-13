@@ -65,7 +65,7 @@ the test or runtime check that covers the contract field.
 ```bash
 pohe-agent list [--patterns P,W]
 pohe-agent show P01 [--json]
-pohe-agent scan <repo> [--json FILE] [--markdown FILE] [--patterns IDS] [--max-files N]
+pohe-agent scan <repo> [--json FILE] [--markdown FILE] [--patterns IDS] [--max-files N]  # N=0 means all files
 pohe-agent match <repo> [--pattern IDS] [--json FILE] [--markdown FILE]
 pohe-agent plan <repo> --findings FILE --goal TEXT [--patterns IDS] [-o FILE]
 ```
@@ -103,6 +103,8 @@ skills/                       task-specific agent skills
 examples/mini_harness/        runnable example
 tests/                        stdlib test suite
 tools/export_patterns.py      regenerate catalog data from the field guide
+tools/reproduce_study_matrix.py  compare cue retrieval with the study matrix
+docs/reproduction.md          method and results of the 41-repository run
 ```
 
 ## Skills

@@ -38,6 +38,17 @@ class WalkTests(unittest.TestCase):
             files, _ = walk_repository(root)
             self.assertEqual([item.rel for item in files], ["app.py"])
 
+    def test_file_budget_keeps_code_before_support(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for index in range(3):
+                (root / f"docs-{index}.md").write_text("# notes\n")
+            (root / "runtime").mkdir()
+            (root / "runtime" / "loop.py").write_text("while True: pass\n")
+            files, skipped = walk_repository(root, max_files=2)
+            self.assertEqual([item.rel for item in files], ["runtime/loop.py", "docs-0.md"])
+            self.assertTrue(any("file limit reached" in note for note in skipped))
+
 
 class ScanTests(unittest.TestCase):
     @classmethod

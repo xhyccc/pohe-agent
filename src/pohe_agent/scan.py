@@ -49,7 +49,7 @@ def priority(code_files: int, test_files: int, hits: int) -> str:
     return "low"
 
 
-def scan_repository(root: Path, catalog: dict | None = None, max_files: int = 6000) -> dict:
+def scan_repository(root: Path, catalog: dict | None = None, max_files: int = 0) -> dict:
     catalog = catalog or load_catalog()
     compiled = compile_cues(catalog)
     files, skipped = walk_repository(root, max_files=max_files)
